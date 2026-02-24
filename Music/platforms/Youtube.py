@@ -679,7 +679,20 @@ class YouTubeAPI :
             if not results or query_type >=len (results ):
                 raise ValueError ('No suitable videos found within duration limit')
             selected =results [query_type ]
-            return (selected ['title'],selected ['duration'],selected ['thumbnails'][0 ]['url'].split ('?')[0 ],selected ['id'])
+            title =selected .get ('title','Unknown')
+            duration =selected .get ('duration','0:00')
+            vid =selected .get ('id','')
+            thumbs =selected .get ('thumbnails') or []
+            thumb_url =''
+            try :
+                if isinstance (thumbs,list )and len (thumbs )>0 :
+                    thumb_url =thumbs [0 ].get ('url','')
+                    if thumb_url :
+                        thumb_url =thumb_url.split ('?')[0 ]
+            except Exception :
+                thumb_url =''
+
+            return (title,duration,thumb_url,vid)
         except Exception as e :
             LOGGER (__name__ ).error (f'Error in slider: {str (e )}')
             raise ValueError ('Failed to fetch video details')
