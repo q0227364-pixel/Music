@@ -468,9 +468,9 @@ class YouTubeAPI :
                 seen .add (f )
         deduped .extend (["bestaudio[ext=m4a]/bestaudio/best","bestaudio/best","best","18"])
 
-                for fmt in deduped :
+        for fmt in deduped :
             try :
-                cmd =['yt-dlp','-g','-f',fmt ,f'{link }']
+                cmd = ['yt-dlp', '-g', '-f', fmt, f'{link }']
                 proxy =_choose_proxy (0 )
                 if proxy :
                     cmd .extend (['--proxy',proxy ])
