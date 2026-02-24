@@ -217,6 +217,7 @@ async def song_download (client ,message :Message ):
         filepath =f'downloads/{safe_title }.mp3'
 
         download_success =False
+        auth_blocked = False
 
         logger .info (f'[Attempt 1] Trying yt-dlp bestaudio for: {video_url }')
 
@@ -246,6 +247,7 @@ async def song_download (client ,message :Message ):
                 if err :
                     if 'Sign in to confirm'in err :
                         logger .debug ('yt-dlp bestaudio requires authentication (skipping)')
+                        auth_blocked = True
                     else :
                         logger .debug (f'yt-dlp bestaudio failed: {err [:200 ]}')
 
@@ -257,7 +259,7 @@ async def song_download (client ,message :Message ):
             except Exception as e :
                 logger .debug (f'yt-dlp bestaudio failed: {str (e )[:100 ]}')
 
-        if not download_success :
+        if not download_success and not auth_blocked :
             logger .info (f'[Attempt 2] Trying yt-dlp direct best for: {video_url }')
 
             try :
@@ -279,6 +281,7 @@ async def song_download (client ,message :Message ):
                 if err :
                     if 'Sign in to confirm'in err :
                         logger .debug ('yt-dlp best requires authentication (skipping)')
+                        auth_blocked = True
                     else :
                         logger .debug (f'yt-dlp best failed: {err [:200 ]}')
 
@@ -302,7 +305,7 @@ async def song_download (client ,message :Message ):
             except Exception as e :
                 logger .debug (f'yt-dlp best failed: {str (e )[:100 ]}')
 
-        if not download_success :
+        if not download_success and not auth_blocked :
             logger .info (f'[Attempt 3] Trying format 18 for: {video_url }')
 
             try :
@@ -321,6 +324,7 @@ async def song_download (client ,message :Message ):
                 if err :
                     if 'Sign in to confirm'in err :
                         logger .debug ('yt-dlp format18 requires authentication (skipping)')
+                        auth_blocked = True
                     else :
                         logger .debug (f'yt-dlp format18 failed: {err [:200 ]}')
 

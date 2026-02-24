@@ -468,6 +468,7 @@ class YouTubeAPI :
                 seen .add (f )
         deduped .extend (["bestaudio[ext=m4a]/bestaudio/best","bestaudio/best","best","18"])
 
+        auth_blocked = False
         for fmt in deduped :
             try :
                 cmd = ['yt-dlp', '-g', '-f', fmt, f'{link }']
@@ -482,6 +483,12 @@ class YouTubeAPI :
                     url =stdout .decode ().split ('\n')[0 ]
                     if url :
                         return (1 ,url )
+                if stderr :
+                    err_text =stderr.decode(errors='ignore')
+                    if 'Sign in to confirm' in err_text:
+                        logger .warning (f'yt-dlp blocked by authentication for {link }: {err_text.splitlines()[0][:120]}')
+                        auth_blocked = True
+                        break
             except Exception as fmt_e :
                 logger .warning (f'Format {fmt } failed for video URL: {str (fmt_e )}')
                 continue
@@ -1019,11 +1026,10 @@ class YouTubeAPI :
                     except Exception as e :
                         error_msg =str (e )
                         if 'Sign in to confirm'in error_msg :
-                            auth_required_count +=1
+                            auth_required_count = 1
                             logger .debug (f'      Config {i +1 }: BLOCKED by auth wall')
-                            if auth_required_count ==1 :
-                                logger .warning (f'   ⚠️ Video REQUIRES AUTHENTICATION - cannot extract directly')
-                            continue
+                            logger .warning (f'   ⚠️ Video REQUIRES AUTHENTICATION - cannot extract directly')
+                            break
                         logger .debug (f'      Config {i +1 }: Failed')
                         continue
                 logger .debug (f'All YouTube direct configs failed')
@@ -1312,6 +1318,7 @@ class YouTubeAPI :
 
                         if 'Sign in to confirm'in error_msg :
                             logger .warning (f'Format {fmt } requires authentication (skipping): {error_msg }')
+                            break
                         else :
                             logger .warning (f'Format {fmt } failed for song video {vid_id }: {error_msg }')
 
