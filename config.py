@@ -41,29 +41,26 @@ def _bool_env(var, default=False):
     val = getenv(var, str(default)).lower()
     return val in ("1", "true", "yes", "on")
 
-YOUTUBE_USE_PYTUBE = _bool_env("YOUTUBE_USE_PYTUBE", True)
+YOUTUBE_USE_PYTUBE = _bool_env("YOUTUBE_USE_PYTUBE", False)  # Отключаем PyTube — часто ломается в 2026
 YOUTUBE_ENABLED = _bool_env("YOUTUBE_ENABLED", True)
 
+# Свежий список Invidious на март 2026 (только рабочие по uptime и отчётам)
 YOUTUBE_INVIDIOUS_INSTANCES = [
     "https://yewtu.be",
     "https://inv.nadeko.net",
     "https://invidious.nerdvpn.de",
-    "https://invidious.privacyredirect.com",
     "https://vid.puffyan.us",
-    "https://invidious.tiekoetter.com",
-    "https://invidious.flokinet.to",
-    "https://inv.tux.pizza",
     "https://invidious.private.coffee",
     "https://iv.ggtyler.dev",
     "https://invidious.fdn.fr",
-    "https://invidious.snopyta.org",
-    "https://invidious-us.kavin.rocks",
-    "https://invidious.jsteward.live",
-    "https://invidious.lunar.icu",
-    "https://invidious.no-logs.com",
+    "https://invidious.tiekoetter.com",
+    "https://invidious.flokinet.to",
 ]
 
 YOUTUBE_PROXY_LIST = [p.strip() for p in getenv("YOUTUBE_PROXY_LIST", "").split(",") if p.strip()]
+
+# Опции для yt-dlp extractor_args — помогают обходить "sign in" без кукисов (не всегда, но часто)
+YOUTUBE_EXTRACTOR_ARGS = getenv("YOUTUBE_EXTRACTOR_ARGS", "youtube:player_client=web_safari,android;po_token=missing_pot")
 
 YT_API_KEY = getenv("YT_API_KEY", "AIzaSyAyFW-9snpxGwFa5cu-p81jjE8Fg1h_6rk")
 YOUTUBE_FALLBACK_SEARCH_LIMIT = int(getenv("YOUTUBE_FALLBACK_SEARCH_LIMIT", "5"))
@@ -86,8 +83,8 @@ TG_VIDEO_FILESIZE_LIMIT = int(getenv("TG_VIDEO_FILESIZE_LIMIT", 2 * 1024 ** 3))
 
 PRIVATE_BOT_MODE_MEM = int(getenv("PRIVATE_BOT_MODE_MEM", 1))
 
-CACHE_DURATION = int(getenv("CACHE_DURATION", 7 * 24 * 3600))
-CACHE_SLEEP = int(getenv("CACHE_SLEEP", 4 * 3600))
+CACHE_DURATION = int(getenv("CACHE_DURATION", 7 * 24 * 3600))  # 7 дней
+CACHE_SLEEP = int(getenv("CACHE_SLEEP", 4 * 3600))             # 4 часа
 
 STRING1 = getenv("STRING_SESSION", "AgFHaGoAVHa9Q15n2IaDNygtcPNPGHBussJjD7XfLJjKV1b-sDdVsBUJ5SAPUoGx6LSJ9EugCx3uTvPNLoosVuiSDI8viGjPOp1sdN30utmvnCzyKIX0IEtPMzx38jkA3fBEWkfwJ-XziR9nkLUzXvn1I3SIVPj6FVPUSq3SW0qO-0nAPO0kIWZRzFTtRLldjDo67E2S3ge1V_dde4upSgJS6MrsWEY0FL6MYCpObLMZ__SGuY5Qq4exbJMGaCpwS5u_DtTuX-LOxMfte5JXR9FOGY3KxBD9UkRIUraQp2VD0PMacbj8bFNApDXwLr9FEjjch8xOydYQfRfL5CIws4dmsu8wxgAAAAH6ziPRAA")
 STRING2 = getenv("STRING_SESSION2", None)
