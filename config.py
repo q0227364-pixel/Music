@@ -11,30 +11,33 @@ API_HASH = getenv("API_HASH", "6f9f6b8fb05ef1f4d9916e901f27bf52")
 
 BOT_TOKEN = getenv("BOT_TOKEN", "8507183742:AAGJNPeHy0WOCB06et_5KCMx8ZOB-vALnYU")
 
-# MongoDB — свежий пароль и надёжная сборка URI
-_mongo_user = getenv("MONGOUSER", getenv("MONGO_INITDB_ROOT_USERNAME", "mongo"))
+# MongoDB — свежие данные из Railway (март 2026)
+_mongo_user = getenv("MONGOUSER", "mongo")
 _mongo_pass = getenv(
     "MONGOPASSWORD",
-    getenv("MONGO_INITDB_ROOT_PASSWORD", "RRQzMeMjoYhIVZRBVpYxPZisUOnbaczG")
+    "MOPQBGNMrwmPjKAwZBQtEtjFXDglDZbl"  # ← актуальный пароль из твоего сообщения
 )
-_mongo_host = getenv("MONGOHOST", "mongodb.railway.internal")
+_mongo_host = getenv("MONGOHOST", "mongodb.railway.internal")  # Railway подставит реальный
 _mongo_port = getenv("MONGOPORT", "27017")
 _mongo_db_name = getenv("MONGO_DB_NAME", "music")
 
-# Приоритет: MONGO_URL → MONGO_DB_URI → ручная сборка
+# Формируем MONGO_DB_URI с максимальным приоритетом на Railway-переменные
 if getenv("MONGO_URL"):
     base_uri = getenv("MONGO_URL").rstrip("/")
     if "?" in base_uri:
         MONGO_DB_URI = base_uri + ("&authSource=admin" if "authSource=" not in base_uri else "")
     else:
         MONGO_DB_URI = base_uri + f"/{_mongo_db_name}?authSource=admin"
+
 elif getenv("MONGO_DB_URI"):
     base_uri = getenv("MONGO_DB_URI").rstrip("/")
     if "?" in base_uri:
         MONGO_DB_URI = base_uri + ("&authSource=admin" if "authSource=" not in base_uri else "")
     else:
         MONGO_DB_URI = base_uri + f"/{_mongo_db_name}?authSource=admin"
+
 else:
+    # Ручная сборка с твоими свежими данными
     encoded_pass = quote_plus(_mongo_pass)
     MONGO_DB_URI = (
         f"mongodb://{_mongo_user}:{encoded_pass}@{_mongo_host}:{_mongo_port}"
@@ -43,7 +46,7 @@ else:
 
 MONGO_DB_NAME = _mongo_db_name
 
-# Отладка только URI (чтобы видеть, что реально используется)
+# Обязательный отладочный вывод — чтобы видеть, что реально используется
 print(f"[CONFIG] MONGO_DB_URI: {MONGO_DB_URI.replace(_mongo_pass, '***HIDDEN***')}")
 
 YTPROXY_URL = getenv("YTPROXY_URL", None)
@@ -53,10 +56,10 @@ def _bool_env(var, default=False):
     val = getenv(var, str(default)).lower()
     return val in ("1", "true", "yes", "on")
 
-YOUTUBE_USE_PYTUBE = _bool_env("YOUTUBE_USE_PYTUBE", False)  # Отключаем — ломается часто
+YOUTUBE_USE_PYTUBE = _bool_env("YOUTUBE_USE_PYTUBE", False)
 YOUTUBE_ENABLED = _bool_env("YOUTUBE_ENABLED", True)
 
-# Живые Invidious на март 2026 (только проверенные)
+# Живые Invidious-инстансы на март 2026
 YOUTUBE_INVIDIOUS_INSTANCES = [
     "https://yewtu.be",
     "https://inv.nadeko.net",
@@ -70,9 +73,6 @@ YOUTUBE_INVIDIOUS_INSTANCES = [
 ]
 
 YOUTUBE_PROXY_LIST = [p.strip() for p in getenv("YOUTUBE_PROXY_LIST", "").split(",") if p.strip()]
-
-# Опции для yt-dlp (помогают обходить "sign in" без кукисов)
-YOUTUBE_EXTRACTOR_ARGS = "youtube:player_client=web_safari,android,ios;impersonate=safari"
 
 YT_API_KEY = getenv("YT_API_KEY", "AIzaSyAyFW-9snpxGwFa5cu-p81jjE8Fg1h_6rk")
 YOUTUBE_FALLBACK_SEARCH_LIMIT = int(getenv("YOUTUBE_FALLBACK_SEARCH_LIMIT", "5"))
@@ -96,8 +96,8 @@ TG_VIDEO_FILESIZE_LIMIT = int(getenv("TG_VIDEO_FILESIZE_LIMIT", 2 * 1024 ** 3))
 
 PRIVATE_BOT_MODE_MEM = int(getenv("PRIVATE_BOT_MODE_MEM", 1))
 
-CACHE_DURATION = int(getenv("CACHE_DURATION", 7 * 24 * 3600))  # 7 дней
-CACHE_SLEEP = int(getenv("CACHE_SLEEP", 4 * 3600))            # 4 часа
+CACHE_DURATION = int(getenv("CACHE_DURATION", 7 * 24 * 3600))
+CACHE_SLEEP = int(getenv("CACHE_SLEEP", 4 * 3600))
 
 STRING1 = getenv("STRING_SESSION", "AgFHaGoAVHa9Q15n2IaDNygtcPNPGHBussJjD7XfLJjKV1b-sDdVsBUJ5SAPUoGx6LSJ9EugCx3uTvPNLoosVuiSDI8viGjPOp1sdN30utmvnCzyKIX0IEtPMzx38jkA3fBEWkfwJ-XziR9nkLUzXvn1I3SIVPj6FVPUSq3SW0qO-0nAPO0kIWZRzFTtRLldjDo67E2S3ge1V_dde4upSgJS6MrsWEY0FL6MYCpObLMZ__SGuY5Qq4exbJMGaCpwS5u_DtTuX-LOxMfte5JXR9FOGY3KxBD9UkRIUraQp2VD0PMacbj8bFNApDXwLr9FEjjch8xOydYQfRfL5CIws4dmsu8wxgAAAAH6ziPRAA")
 STRING2 = getenv("STRING_SESSION2", None)
