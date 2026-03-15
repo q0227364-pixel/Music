@@ -2,6 +2,7 @@ import re
 from os import getenv
 from dotenv import load_dotenv
 from urllib.parse import quote_plus
+from pyrogram import filters
 
 load_dotenv()
 
@@ -57,6 +58,9 @@ YOUTUBE_INVIDIOUS_INSTANCES = [
     "https://invidious.fdn.fr",
     "https://invidious.snopyta.org",
     "https://invidious-us.kavin.rocks",
+    "https://invidious.jsteward.live",
+    "https://invidious.lunar.icu",
+    "https://invidious.no-logs.com",
 ]
 
 YOUTUBE_PROXY_LIST = [p.strip() for p in getenv("YOUTUBE_PROXY_LIST", "").split(",") if p.strip()]
@@ -67,7 +71,6 @@ YOUTUBE_FALLBACK_SEARCH_LIMIT = int(getenv("YOUTUBE_FALLBACK_SEARCH_LIMIT", "5")
 DURATION_LIMIT_MIN = int(getenv("DURATION_LIMIT", 300))
 
 LOGGER_ID = int(getenv("LOGGER_ID", "-1003646583089"))
-
 OWNER_ID = int(getenv("OWNER_ID", "8557740388"))
 
 AUTO_LEAVING_ASSISTANT = _bool_env("AUTO_LEAVING_ASSISTANT", False)
@@ -113,6 +116,7 @@ PING_IMG_URL = getenv(
     "PING_IMG_URL",
     "https://image2url.com/r2/default/images/1768792821746-ad62ab76-1fdc-45d7-8b5e-a5343577d6bb.jpg"
 )
+
 PLAYLIST_IMG_URL = "https://image2url.com/r2/default/images/1768793789039-2d4017a9-b0a3-43ec-837c-82855012c3fb.jpg"
 TELEGRAM_AUDIO_URL = "https://image2url.com/r2/default/images/1768793789039-2d4017a9-b0a3-43ec-837c-82855012c3fb.jpg"
 TELEGRAM_VIDEO_URL = "https://image2url.com/r2/default/images/1768793789039-2d4017a9-b0a3-43ec-837c-82855012c3fb.jpg"
