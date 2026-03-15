@@ -8,19 +8,28 @@ load_dotenv()
 
 API_ID = int(getenv("API_ID", "21457002"))
 API_HASH = getenv("API_HASH", "6f9f6b8fb05ef1f4d9916e901f27bf52")
+
 BOT_TOKEN = getenv("BOT_TOKEN", "8507183742:AAGJNPeHy0WOCB06et_5KCMx8ZOB-vALnYU")
 
+# MongoDB — свежий пароль и надёжная сборка URI
 _mongo_user = getenv("MONGOUSER", getenv("MONGO_INITDB_ROOT_USERNAME", "mongo"))
 _mongo_pass = getenv(
     "MONGOPASSWORD",
-    getenv("MONGO_INITDB_ROOT_PASSWORD", "MOPQBGNMrwmPjKAwZBQtEtjFXDglDZbl")
+    getenv("MONGO_INITDB_ROOT_PASSWORD", "RRQzMeMjoYhIVZRBVpYxPZisUOnbaczG")
 )
 _mongo_host = getenv("MONGOHOST", "mongodb.railway.internal")
 _mongo_port = getenv("MONGOPORT", "27017")
 _mongo_db_name = getenv("MONGO_DB_NAME", "music")
 
+# Приоритет: MONGO_URL → MONGO_DB_URI → ручная сборка
 if getenv("MONGO_URL"):
     base_uri = getenv("MONGO_URL").rstrip("/")
+    if "?" in base_uri:
+        MONGO_DB_URI = base_uri + ("&authSource=admin" if "authSource=" not in base_uri else "")
+    else:
+        MONGO_DB_URI = base_uri + f"/{_mongo_db_name}?authSource=admin"
+elif getenv("MONGO_DB_URI"):
+    base_uri = getenv("MONGO_DB_URI").rstrip("/")
     if "?" in base_uri:
         MONGO_DB_URI = base_uri + ("&authSource=admin" if "authSource=" not in base_uri else "")
     else:
@@ -34,6 +43,9 @@ else:
 
 MONGO_DB_NAME = _mongo_db_name
 
+# Отладка только URI (чтобы видеть, что реально используется)
+print(f"[CONFIG] MONGO_DB_URI: {MONGO_DB_URI.replace(_mongo_pass, '***HIDDEN***')}")
+
 YTPROXY_URL = getenv("YTPROXY_URL", None)
 YOUTUBE_PROXY = getenv("YOUTUBE_PROXY", None)
 
@@ -41,26 +53,26 @@ def _bool_env(var, default=False):
     val = getenv(var, str(default)).lower()
     return val in ("1", "true", "yes", "on")
 
-YOUTUBE_USE_PYTUBE = _bool_env("YOUTUBE_USE_PYTUBE", False)  # Отключаем PyTube — часто ломается в 2026
+YOUTUBE_USE_PYTUBE = _bool_env("YOUTUBE_USE_PYTUBE", False)  # Отключаем — ломается часто
 YOUTUBE_ENABLED = _bool_env("YOUTUBE_ENABLED", True)
 
-# Свежий список Invidious на март 2026 (только рабочие по uptime и отчётам)
+# Живые Invidious на март 2026 (только проверенные)
 YOUTUBE_INVIDIOUS_INSTANCES = [
     "https://yewtu.be",
     "https://inv.nadeko.net",
-    "https://invidious.nerdvpn.de",
     "https://vid.puffyan.us",
     "https://invidious.private.coffee",
     "https://iv.ggtyler.dev",
     "https://invidious.fdn.fr",
     "https://invidious.tiekoetter.com",
     "https://invidious.flokinet.to",
+    "https://invidious.darkness.services",
 ]
 
 YOUTUBE_PROXY_LIST = [p.strip() for p in getenv("YOUTUBE_PROXY_LIST", "").split(",") if p.strip()]
 
-# Опции для yt-dlp extractor_args — помогают обходить "sign in" без кукисов (не всегда, но часто)
-YOUTUBE_EXTRACTOR_ARGS = getenv("YOUTUBE_EXTRACTOR_ARGS", "youtube:player_client=web_safari,android;po_token=missing_pot")
+# Опции для yt-dlp (помогают обходить "sign in" без кукисов)
+YOUTUBE_EXTRACTOR_ARGS = "youtube:player_client=web_safari,android,ios;impersonate=safari"
 
 YT_API_KEY = getenv("YT_API_KEY", "AIzaSyAyFW-9snpxGwFa5cu-p81jjE8Fg1h_6rk")
 YOUTUBE_FALLBACK_SEARCH_LIMIT = int(getenv("YOUTUBE_FALLBACK_SEARCH_LIMIT", "5"))
@@ -68,6 +80,7 @@ YOUTUBE_FALLBACK_SEARCH_LIMIT = int(getenv("YOUTUBE_FALLBACK_SEARCH_LIMIT", "5")
 DURATION_LIMIT_MIN = int(getenv("DURATION_LIMIT", 300))
 
 LOGGER_ID = int(getenv("LOGGER_ID", "-1003646583089"))
+
 OWNER_ID = int(getenv("OWNER_ID", "8557740388"))
 
 AUTO_LEAVING_ASSISTANT = _bool_env("AUTO_LEAVING_ASSISTANT", False)
@@ -84,7 +97,7 @@ TG_VIDEO_FILESIZE_LIMIT = int(getenv("TG_VIDEO_FILESIZE_LIMIT", 2 * 1024 ** 3))
 PRIVATE_BOT_MODE_MEM = int(getenv("PRIVATE_BOT_MODE_MEM", 1))
 
 CACHE_DURATION = int(getenv("CACHE_DURATION", 7 * 24 * 3600))  # 7 дней
-CACHE_SLEEP = int(getenv("CACHE_SLEEP", 4 * 3600))             # 4 часа
+CACHE_SLEEP = int(getenv("CACHE_SLEEP", 4 * 3600))            # 4 часа
 
 STRING1 = getenv("STRING_SESSION", "AgFHaGoAVHa9Q15n2IaDNygtcPNPGHBussJjD7XfLJjKV1b-sDdVsBUJ5SAPUoGx6LSJ9EugCx3uTvPNLoosVuiSDI8viGjPOp1sdN30utmvnCzyKIX0IEtPMzx38jkA3fBEWkfwJ-XziR9nkLUzXvn1I3SIVPj6FVPUSq3SW0qO-0nAPO0kIWZRzFTtRLldjDo67E2S3ge1V_dde4upSgJS6MrsWEY0FL6MYCpObLMZ__SGuY5Qq4exbJMGaCpwS5u_DtTuX-LOxMfte5JXR9FOGY3KxBD9UkRIUraQp2VD0PMacbj8bFNApDXwLr9FEjjch8xOydYQfRfL5CIws4dmsu8wxgAAAAH6ziPRAA")
 STRING2 = getenv("STRING_SESSION2", None)
@@ -113,7 +126,6 @@ PING_IMG_URL = getenv(
     "PING_IMG_URL",
     "https://image2url.com/r2/default/images/1768792821746-ad62ab76-1fdc-45d7-8b5e-a5343577d6bb.jpg"
 )
-
 PLAYLIST_IMG_URL = "https://image2url.com/r2/default/images/1768793789039-2d4017a9-b0a3-43ec-837c-82855012c3fb.jpg"
 TELEGRAM_AUDIO_URL = "https://image2url.com/r2/default/images/1768793789039-2d4017a9-b0a3-43ec-837c-82855012c3fb.jpg"
 TELEGRAM_VIDEO_URL = "https://image2url.com/r2/default/images/1768793789039-2d4017a9-b0a3-43ec-837c-82855012c3fb.jpg"
