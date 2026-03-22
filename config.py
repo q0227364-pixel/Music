@@ -11,17 +11,17 @@ API_HASH = getenv("API_HASH", "6f9f6b8fb05ef1f4d9916e901f27bf52")
 
 BOT_TOKEN = getenv("BOT_TOKEN", "8507183742:AAGJNPeHy0WOCB06et_5KCMx8ZOB-vALnYU")
 
-# MongoDB — САМЫЕ СВЕЖИЕ данные из твоего последнего сообщения
+# MongoDB — свежие данные из Railway (март 2026)
 _mongo_user = getenv("MONGOUSER", "mongo")
 _mongo_pass = getenv(
     "MONGOPASSWORD",
-    "FypzoNxflzBDSauhkXhqXkGCohhdnmSI"  # ← новый актуальный пароль
+    "FypzoNxflzBDSauhkXhqXkGCohhdnmSI"  # ← актуальный пароль из твоего сообщения
 )
-_mongo_host = getenv("MONGOHOST", "mongodb.railway.internal")
+_mongo_host = getenv("MONGOHOST", "mongodb.railway.internal")  # Railway подставит реальный
 _mongo_port = getenv("MONGOPORT", "27017")
 _mongo_db_name = getenv("MONGO_DB_NAME", "music")
 
-# Формируем MONGO_DB_URI — приоритет на Railway-переменные
+# Формируем MONGO_DB_URI с максимальным приоритетом на Railway-переменные
 if getenv("MONGO_URL"):
     base_uri = getenv("MONGO_URL").rstrip("/")
     if "?" in base_uri:
@@ -37,7 +37,7 @@ elif getenv("MONGO_DB_URI"):
         MONGO_DB_URI = base_uri + f"/{_mongo_db_name}?authSource=admin"
 
 else:
-    # Ручная сборка с новым паролем
+    # Ручная сборка с твоими свежими данными
     encoded_pass = quote_plus(_mongo_pass)
     MONGO_DB_URI = (
         f"mongodb://{_mongo_user}:{encoded_pass}@{_mongo_host}:{_mongo_port}"
@@ -46,7 +46,7 @@ else:
 
 MONGO_DB_NAME = _mongo_db_name
 
-# Обязательный print для отладки (чтобы видеть, что используется)
+# Обязательный отладочный вывод — чтобы видеть, что реально используется
 print(f"[CONFIG] MONGO_DB_URI: {MONGO_DB_URI.replace(_mongo_pass, '***HIDDEN***')}")
 
 YTPROXY_URL = getenv("YTPROXY_URL", None)
@@ -59,7 +59,7 @@ def _bool_env(var, default=False):
 YOUTUBE_USE_PYTUBE = _bool_env("YOUTUBE_USE_PYTUBE", False)
 YOUTUBE_ENABLED = _bool_env("YOUTUBE_ENABLED", True)
 
-# Живые Invidious на март 2026
+# Живые Invidious-инстансы на март 2026
 YOUTUBE_INVIDIOUS_INSTANCES = [
     "https://yewtu.be",
     "https://inv.nadeko.net",
@@ -69,6 +69,7 @@ YOUTUBE_INVIDIOUS_INSTANCES = [
     "https://invidious.fdn.fr",
     "https://invidious.tiekoetter.com",
     "https://invidious.flokinet.to",
+    "https://invidious.darkness.services",
 ]
 
 YOUTUBE_PROXY_LIST = [p.strip() for p in getenv("YOUTUBE_PROXY_LIST", "").split(",") if p.strip()]
