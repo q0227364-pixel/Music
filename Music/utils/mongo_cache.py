@@ -177,6 +177,8 @@ thumbnail_cache =MongoDictCache ('cache_thumbnails ')
 speed_cache =MongoDictCache ('cache_speed ')
 nonadmin_cache =MongoDictCache ('cache_nonadmin ')
 channel_connect_cache =MongoDictCache ('cache_channel_connect ')
+# NEW: Metadata cache for storing video title/thumbnail by video_id (global cache, not per-chat)
+metadata_cache =mongo_cache
 
 logger .info ('✓ MongoDB кэш система инициализирована')
 

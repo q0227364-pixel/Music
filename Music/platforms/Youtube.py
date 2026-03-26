@@ -578,6 +578,30 @@ class YouTubeAPI :
         elif '&si='in link :
             link =link .split ('&si=')[0 ]
 
+        # Try to extract video ID from link
+        video_id_from_link =None
+        if 'watch?v='in link :
+            try :
+                video_id_from_link =link .split ('watch?v=')[1 ].split ('&')[0 ]
+            except :
+                pass
+        elif 'youtu.be/'in link :
+            try :
+                video_id_from_link =link .split ('youtu.be/')[1 ].split ('?')[0 ]
+            except :
+                pass
+
+        # Check if metadata is already cached for this video_id
+        if video_id_from_link :
+            try :
+                from Music .utils .mongo_cache import metadata_cache
+                cached_metadata =await metadata_cache .get (f'metadata_{video_id_from_link}')
+                if cached_metadata :
+                    logger .info (f'✓ Using cached metadata for {video_id_from_link }')
+                    return (cached_metadata ,video_id_from_link )
+            except Exception as e :
+                logger .debug (f'Metadata cache retrieval failed: {e }')
+
         max_retries =2
         for attempt in range (max_retries ):
             try :
@@ -592,15 +616,21 @@ class YouTubeAPI :
                         vidid =result .get ('id','')
                         yturl =result .get ('link','')
                         thumbnails =result .get ('thumbnails',[])
-                        thumbnail =thumbnails [0 ]['url'].split ('?')[0 ]if thumbnails else 'https://i.ytimg.com/vi/0/default.jpg'
+                        thumbnail =thumbnails [0 ]['url'].split ('?')[0 ]if thumbnails else f'https://i.ytimg.com/vi/{vidid }/maxresdefault.jpg'
 
                         logger .debug (f'Extracted: title={title }, vidid={vidid }, duration={duration_min }')
-                        if vidid :
+                        if vidid and title and title !='Unknown Video':
                             track_details ={'title':title ,'link':yturl ,'vidid':vidid ,'duration_min':duration_min ,'thumb':thumbnail }
-                            logger .info (f'✓ VideosSearch succeeded for "{link }", returning track: {track_details }')
+                            # Cache the metadata
+                            try :
+                                from Music .utils .mongo_cache import metadata_cache
+                                await metadata_cache .set (f'metadata_{vidid }',track_details ,ttl =86400 *7 )
+                                logger .info (f'✓ VideosSearch succeeded for "{link }", cached & returning: {track_details }')
+                            except Exception as e :
+                                logger .debug (f'Metadata cache storage failed: {e }')
                             return (track_details ,vidid )
                         else :
-                            logger .warning (f'VideosSearch found result but vidid is empty for "{link }"')
+                            logger .warning (f'VideosSearch returned invalid data: title={title }, vidid={vidid }')
             except Exception as e :
                 logger .debug (f'VideosSearch attempt {attempt +1 }/{max_retries } failed for "{link }": {e }')
                 if attempt <max_retries -1 :
@@ -626,6 +656,12 @@ class YouTubeAPI :
 
                                     yturl =f"https://www.youtube.com/watch?v={vid_id }"
                                     track_details ={'title':title ,'link':yturl ,'vidid':vid_id ,'duration_min':duration_min ,'thumb':thumbnail }
+                                    # Cache the metadata
+                                    try :
+                                        from Music .utils .mongo_cache import metadata_cache
+                                        await metadata_cache .set (f'metadata_{vid_id }',track_details ,ttl =86400 *7 )
+                                    except Exception as e :
+                                        logger .debug (f'Metadata cache storage failed: {e }')
                                     logger .info (f'✓ Invidious search succeeded for "{link }" using {inst }')
                                     return (track_details ,vid_id )
                 except Exception as e :
@@ -665,10 +701,34 @@ class YouTubeAPI :
 
                                 yturl =f"https://www.youtube.com/watch?v={vid_id }"
                                 track_details ={'title':title ,'link':yturl ,'vidid':vid_id ,'duration_min':duration_min ,'thumb':thumbnail }
+                                # Cache the metadata
+                                try :
+                                    from Music .utils .mongo_cache import metadata_cache
+                                    await metadata_cache .set (f'metadata_{vid_id }',track_details ,ttl =86400 *7 )
+                                except Exception as e :
+                                    logger .debug (f'Metadata cache storage failed: {e }')
                                 logger .info (f'✓ YouTube API search succeeded for "{link }"')
                                 return (track_details ,vid_id )
             except Exception as e :
                 logger .debug (f'YouTube API search failed: {e }')
+
+        # Fallback: If direct search fails but we have a video_id from the link, use generic metadata
+        if video_id_from_link :
+            logger .warning (f'Metadata extraction failed for {video_id_from_link }, using fallback generic metadata')
+            track_details ={
+                'title':f'Music {video_id_from_link }',
+                'link':link ,
+                'vidid':video_id_from_link ,
+                'duration_min':'0:00',
+                'thumb':f'https://i.ytimg.com/vi/{video_id_from_link }/maxresdefault.jpg'
+            }
+            # Cache even the fallback
+            try :
+                from Music .utils .mongo_cache import metadata_cache
+                await metadata_cache .set (f'metadata_{video_id_from_link }',track_details ,ttl =3600 )
+            except Exception as e :
+                logger .debug (f'Metadata cache storage failed: {e }')
+            return (track_details ,video_id_from_link )
 
         raise ValueError ("ꜰᴀɪʟᴇᴅ ᴛᴏ ꜰᴇᴛᴄʜ ᴛʀᴀᴄᴋ ᴅᴇᴛᴀɪʟs. ᴛʀʏ ᴘʟᴀʏɪɴɢ ᴀɴʏ ᴏᴛʜᴇʀ.")
 
