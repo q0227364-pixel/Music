@@ -181,14 +181,23 @@ async def try_external_mp3_extraction (video_url :str ,filepath :str ,timeout :i
         failed_services =[]
         working_services =[]
 
+        max_primary_services =6
+        scanned_services =0
+
         for idx ,service in enumerate (services ,1 ):
+            scanned_services +=1
+            if scanned_services > max_primary_services and time .monotonic ()-start > (timeout *0.65 ):
+                logger .info ('Reached primary external service limit for speed; switching to fallback list')
+                break
+
             elapsed =time .monotonic ()-start
             if elapsed >=timeout :
                 logger .warning ("External extraction overall timeout reached")
                 break
 
             service_name =service .get ('name','unknown')
-            service_timeout =aiohttp .ClientTimeout (total =min (15 ,service .get ('timeout',15 )))
+            # smaller per-service timeout to speed up retries
+            service_timeout =aiohttp .ClientTimeout (total =min (12 ,service .get ('timeout',15 )))
 
             method =service .get ('method','POST').upper ()
             url_param =service .get ('url_param','url')
@@ -284,7 +293,7 @@ async def try_external_mp3_extraction (video_url :str ,filepath :str ,timeout :i
                 logger .debug (f'{service_name }: connection error: {type (service_error ).__name__ } {service_error }')
                 failed_services .append (f'{service_name } ({type (service_error ).__name__ })')
 
-            await asyncio .sleep (0.3 )
+            await asyncio .sleep (0.15 )
 
         services_str =', '.join ([s .get ('name','unknown')for s in services ])
         logger .warning (f'⚠️  All external services exhausted ({len (services )} tried). Services attempted: {services_str }. Consider checking external service availability or updating service URLs.')

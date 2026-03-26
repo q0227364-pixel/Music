@@ -530,7 +530,7 @@ class YouTubeAPI :
 
             # Then try external MP3 extraction services
             try :
-                ext =await try_external_mp3_extraction (f'https://www.youtube.com/watch?v={video_id or link }',filepath )
+                ext =await try_external_mp3_extraction (f'https://www.youtube.com/watch?v={video_id or link }',filepath ,timeout =45 )
                 if ext and os .path .exists (filepath ):
                     logger .info (f'External MP3 fallback succeeded for {link }')
                     _log_method (video_id or safe_id ,'external_service',self )
@@ -894,25 +894,22 @@ class YouTubeAPI :
                 if os .path .exists (filepath ):
                     return filepath
 
-                logger .info (f'🎵 [PRIMARY METHOD] Trying external MP3 services for {vid_id }...')
+                logger .info (f'🎵 [DOWNLOAD] Downloading audio for {vid_id }...')
                 
-                # PRIMARY PRIORITY: External MP3 services (no authentication needed)
-                logger .info (f'   → [1/3] External MP3 extraction services (PRIORITY)...')
+                # METHOD 1: External MP3 services (PRIMARY - no YouTube authentication needed)
+                logger .info (f'   → [1/2] External MP3 extraction services...')
                 try :
                     ext_result =await try_external_mp3_extraction (f'https://www.youtube.com/watch?v={vid_id }',filepath )
                     if ext_result and os .path .exists (filepath ):
-                        logger .info (f'✅ [1] External service success - download complete!')
+                        logger .info (f'✅ [1/2] External service success!')
                         _log_method (vid_id ,'external_service',self )
                         return filepath
-                    else :
-                        logger .debug (f'      External services: All failed, trying alternatives...')
                 except Exception as ext_e :
-                    error_msg =str (ext_e )
-                    logger .warning (f'      External: {error_msg [:50 ]}')
+                    logger .debug (f'External services failed: {str (ext_e )[:60 ]}')
 
-                # SECONDARY: Try Invidious (YouTube proxy instances)
+                # METHOD 2: Invidious (YouTube proxy - fallback)
                 if YOUTUBE_INVIDIOUS_INSTANCES :
-                    logger .info (f'   → [2/3] Attempting Invidious (proxy instances)...')
+                    logger .info (f'   → [2/2] Invidious proxy instances...')
                     for _ in range (len (YOUTUBE_INVIDIOUS_INSTANCES )):
                         inst =self ._next_invidious ()
                         if not inst :
@@ -926,248 +923,17 @@ class YouTubeAPI :
                             with ThreadPoolExecutor (max_workers =2 )as executor :
                                 await loop .run_in_executor (executor ,lambda :create_ydl (ydl_fallback ).download ([invid_url ]))
                             if os .path .exists (filepath ):
-                                logger .info (f'✅ [2] Invidious succeeded for {vid_id } via {inst }')
+                                logger .info (f'✅ [2/2] Invidious succeeded via {inst }')
                                 _log_method (vid_id ,'invidious',self )
                                 return filepath
                         except Exception as inv_e :
-                            logger .debug (f'Invidious {inst }: {str (inv_e )[:80 ]}')
+                            logger .debug (f'Invidious {inst }: {type (inv_e ).__name__ }')
                             continue
 
-                # Search for alternative video on YouTube if direct download failed
-                info =None
-                requires_auth =False
-                is_available =False
-                auth_required_count =0
-
-                if not is_available and info and isinstance (info ,dict )and info .get ('title')and _recursion_depth <2 :
-                    alt_title =search_title or info .get ('title')
-                    logger .info (f'Video {vid_id } is unavailable (attempt {_recursion_depth +1 }) - searching for alternative using info title...')
-                    try :
-                        search =VideosSearch (alt_title ,limit =3 )
-                        results =(await search .next ()).get ('result',[])
-                        logger .info (f'Alternative search found {len (results )} results for "{alt_title }"')
-                        attempted =0
-                        for i ,r in enumerate (results ):
-                            alt_vid =r .get ('id')
-                            if alt_vid and alt_vid !=vid_id :
-                                attempted +=1
-                                alt_t =r .get ('title','unknown')[:50 ]
-                                logger .info (f'  [{attempted }] Trying alternative: {alt_vid } (title: {alt_t })')
-                                alt_res =await audio_dl (alt_vid ,search_title ,_recursion_depth +1 )
-                                if alt_res :
-                                    logger .info (f'✓ Successfully downloaded alternative video {alt_vid }')
-                                    return alt_res
-                        if attempted ==0 :
-                            logger .warning (f'No valid alternatives found (all {len (results )} results had same ID or missing)')
-                    except Exception as s_e :
-                        logger .warning (f'Alternative video search failed: {type (s_e ).__name__ }: {s_e }')
-                elif not is_available and search_title and _recursion_depth <2 :
-                    logger .info (f'Video {vid_id } is unavailable (attempt {_recursion_depth +1 }) - searching for alternative using title: {search_title }...')
-                    try :
-                        search =VideosSearch (search_title ,limit =3 )
-                        results =(await search .next ()).get ('result',[])
-                        logger .info (f'Alternative search found {len (results )} results for "{search_title }"')
-                        attempted =0
-                        for i ,r in enumerate (results ):
-                            alt_vid =r .get ('id')
-                            if alt_vid and alt_vid !=vid_id :
-                                attempted +=1
-                                alt_t =r .get ('title','unknown')[:50 ]
-                                logger .info (f'  [{attempted }] Trying alternative: {alt_vid } (title: {alt_t })')
-                                alt_res =await audio_dl (alt_vid ,search_title ,_recursion_depth +1 )
-                                if alt_res :
-                                    logger .info (f'✓ Successfully downloaded alternative video {alt_vid }')
-                                    return alt_res
-                        if attempted ==0 :
-                            logger .warning (f'No valid alternatives found (all {len (results )} results had same ID or missing)')
-                    except Exception as s_e :
-                        logger .warning (f'Alternative video search failed: {type (s_e ).__name__ }: {s_e }')
-                elif not is_available and _recursion_depth >=2 :
-                    logger .warning (f'Max recursion depth reached for alternatives ({_recursion_depth }), skipping to fallback methods')
-
-                if YOUTUBE_USE_PYTUBE :
-                    logger .info (f'   → [4] pytube (optional fallback)...')
-                    try :
-                        from pytube import YouTube as PyTube
-                        yt_obj =PyTube (f'https://www.youtube.com/watch?v={vid_id }')
-                        audio_streams =yt_obj .streams .filter (only_audio =True )
-                        if audio_streams :
-                            stream =audio_streams .order_by ('abr').desc ().first ()
-                            if stream :
-                                logger .debug (f'      Found: {stream .mime_type } @ {stream .abr }')
-                                out =stream .download (output_path ='downloads',filename =f'{vid_id }_pytube')
-                                mp3path =filepath
-                                try :
-                                    subprocess .run (['ffmpeg','-y','-i',out ,'-vn','-ab','320k','-q:a','0',mp3path ],check =True )
-                                    if os .path .exists (mp3path ):
-                                        logger .info (f'✅ pytube success @ {stream .abr }')
-                                        _log_method (vid_id ,'pytube',self )
-                                        if os .path .exists (out )and out !=mp3path :
-                                            os .remove (out )
-                                        return mp3path
-                                except Exception as conv_e :
-                                    logger .warning (f'      pytube: FFmpeg failed - {str (conv_e )[:50 ]}')
-                        else :
-                            logger .debug (f'      No audio streams available')
-                    except Exception as py_e :
-                        error_type =type (py_e ).__name__
-                        logger .warning (f'      pytube: {error_type } - {str (py_e )[:50 ]}')
-                ydl_opts_list =[
-                {
-                'format':'bestaudio/best',
-                'outtmpl':os .path .join ('downloads',f'{vid_id }'),
-                'postprocessors':[{'key':'FFmpegExtractAudio','preferredcodec':'mp3','preferredquality':'320'}],
-                'quiet':True ,
-                'no_warnings':True ,
-                'retries':5 ,
-                'fragment_retries':5 ,
-                'skip_unavailable_fragments':True ,
-                'socket_timeout':30 ,
-                'js_runtimes':{'node':{'interpreter':'node'}},
-                'http_headers':{
-                'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-                'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language':'en-us,en;q=0.5',
-                'Sec-Fetch-Mode':'navigate',
-                'Sec-Fetch-Dest':'document',
-                'Sec-Fetch-Site':'none',
-                'Sec-Fetch-User':'?1',
-                'Upgrade-Insecure-Requests':'1'
-                },
-                'extractor_args':{'youtube':{'player_client':['web'],'innertube_client':'web'}}
-                },
-                {
-                'format':'bestaudio[ext=m4a]/bestaudio/best',
-                'outtmpl':os .path .join ('downloads',f'{vid_id }'),
-                'postprocessors':[{'key':'FFmpegExtractAudio','preferredcodec':'mp3','preferredquality':'192'}],
-                'quiet':True ,
-                'no_warnings':True ,
-                'retries':5 ,
-                'fragment_retries':5 ,
-                'skip_unavailable_fragments':True ,
-                'socket_timeout':30 ,
-                'js_runtimes':{'node':{'interpreter':'node'}},
-                'http_headers':{
-                'User-Agent':'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
-                'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language':'en-us,en;q=0.5',
-                'Sec-Fetch-Mode':'navigate',
-                'Sec-Fetch-Dest':'document',
-                'Sec-Fetch-Site':'none',
-                'Sec-Fetch-User':'?1',
-                'Upgrade-Insecure-Requests':'1'
-                },
-                'extractor_args':{'youtube':{'player_client':['ios'],'innertube_client':'ios'}}
-                },
-                {
-                'format':'bestaudio[ext=m4a]/bestaudio/best',
-                'outtmpl':os .path .join ('downloads',f'{vid_id }'),
-                'postprocessors':[{'key':'FFmpegExtractAudio','preferredcodec':'mp3','preferredquality':'320'}],
-                'quiet':True ,
-                'no_warnings':True ,
-                'retries':3 ,
-                'fragment_retries':3 ,
-                'skip_unavailable_fragments':True ,
-                'socket_timeout':30 ,
-                'js_runtimes':{'node':{'interpreter':'node'}},
-                'http_headers':{
-                'User-Agent':'Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36',
-                'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language':'en-us,en;q=0.5',
-                'Sec-Fetch-Mode':'navigate',
-                'Sec-Fetch-Dest':'document',
-                'Sec-Fetch-Site':'none',
-                'Sec-Fetch-User':'?1',
-                'Upgrade-Insecure-Requests':'1',
-                'DNT':'1',
-                'Sec-Ch-Ua-Mobile':'?1',
-                'Sec-Ch-Ua-Platform':'"Android"'
-                },
-                'extractor_args':{'youtube':{'player_client':['android'],'innertube_client':'android'}}
-                },
-                {
-                'format':'bestaudio[ext=m4a]/bestaudio/best',
-                'outtmpl':os .path .join ('downloads',f'{vid_id }'),
-                'postprocessors':[{'key':'FFmpegExtractAudio','preferredcodec':'mp3','preferredquality':'320'}],
-                'quiet':True ,
-                'no_warnings':True ,
-                'retries':3 ,
-                'fragment_retries':3 ,
-                'skip_unavailable_fragments':True ,
-                'socket_timeout':30 ,
-                'js_runtimes':{'node':{'interpreter':'node'}},
-                'http_headers':{
-                'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/133.0',
-                'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-                'Accept-Language':'en-US,en;q=0.5',
-                'Accept-Encoding':'gzip, deflate, br',
-                'DNT':'1',
-                'Connection':'keep-alive',
-                'Upgrade-Insecure-Requests':'1',
-                'Sec-Fetch-Dest':'document',
-                'Sec-Fetch-Mode':'navigate',
-                'Sec-Fetch-Site':'none',
-                'Sec-Fetch-User':'?1'
-                }
-                }
-                ]
-
-                logger .info (f'   → [4/4] YouTube yt-dlp direct ({len (ydl_opts_list )} configs)...')
-                auth_required_count =0
-                for i in range (len (ydl_opts_list )):
-                    try :
-                        logger .debug (f'      Config {i +1 }/{len (ydl_opts_list )}...')
-                        ydl_opts =ydl_opts_list [i ].copy ()
-                        if YOUTUBE_PROXY and 'proxy'not in ydl_opts :
-                            ydl_opts ['proxy']=YOUTUBE_PROXY
-                        loop =asyncio .get_running_loop ()
-                        with ThreadPoolExecutor (max_workers =2 )as executor :
-                            err =await loop .run_in_executor (executor ,functools .partial (_run_ydl_suppressed ,ydl_opts ,[f'https://www.youtube.com/watch?v={vid_id }']))
-                            if err and 'Sign in to confirm' in err:
-                                auth_required_count = 1
-                                logger .debug (f'      Config {i +1 }: BLOCKED by auth wall')
-                                logger .warning (f'   ⚠️ Video REQUIRES AUTHENTICATION - cannot extract directly')
-                                break
-                        if os .path .exists (filepath ):
-                            logger .info (f'✅ [4] YouTube yt-dlp success (config {i +1 })')
-                            return filepath
-                    except Exception as e :
-                        error_msg =str (e )
-                        if 'Sign in to confirm'in error_msg :
-                            auth_required_count = 1
-                            logger .debug (f'      Config {i +1 }: BLOCKED by auth wall')
-                            logger .warning (f'   ⚠️ Video REQUIRES AUTHENTICATION - cannot extract directly')
-                            break
-                        logger .debug (f'      Config {i +1 }: Failed')
-                        continue
-                logger .debug (f'All YouTube direct configs failed')
-
-                try :
-                    if info and isinstance (info ,dict )and info .get ('title'):
-                        title =info .get ('title')
-                        search =VideosSearch (title ,limit =self .fallback_search_limit )
-                        results =(await search .next ()).get ('result',[])
-                        for r in results :
-                            alt_vid =r .get ('id')
-                            if alt_vid and alt_vid !=vid_id :
-                                logger .info (f'Trying alternative video {alt_vid } for title match')
-                                alt_res =await audio_dl (alt_vid )
-                                if alt_res :
-                                    return alt_res
-                except Exception as s_e :
-                    error_msg =str (s_e )
-
-                    if 'Sign in to confirm'in error_msg :
-                        logger .warning (f'Fallback search requires authentication (skipping)')
-                    else :
-                        logger .warning (f'Fallback search failed: {s_e }')
-                logger .error (f'❌ Extraction FAILED for {vid_id }')
-                if auth_required_count >0 :
-                    logger .error (f'   Reason: Video requires authentication (YouTube anti-bot protection)')
-                    logger .info (f'   Attempted: [1] pytube [2] Invidious [3] External services [4] yt-dlp (all blocked by auth)')
-                else :
-                    logger .error (f'   Reason: All extraction methods exhausted')
-                    logger .info (f'   Attempted: [1] pytube [2] Invidious [3] External services [4] yt-dlp (all failed)')
+                # No direct YouTube download attempts - External + Invidious only!
+                logger .error (f'❌ Download FAILED for {vid_id }')
+                logger .warning (f'   All external services & Invidious exhausted')
+                logger .warning (f'   ⚠️  Direct YouTube download DISABLED (anti-bot protection)')
                 return None
             except Exception as e :
                 logger .error (f'audio_dl error for {vid_id }: {str (e )}')
@@ -1484,7 +1250,7 @@ class YouTubeAPI :
                 try :
                     logger .info (f'Attempting external extraction fallback for {vid_id }...')
                     youtube_url =f'https://www.youtube.com/watch?v={vid_id }'
-                    external_result =await try_external_mp3_extraction (youtube_url ,filepath ,timeout =120 )
+                    external_result =await try_external_mp3_extraction (youtube_url ,filepath ,timeout =45 )
                     if external_result and os .path .exists (filepath ):
                         logger .info (f'✓ External extraction succeeded for {vid_id }')
                         _log_method (vid_id ,'external_service',self )
@@ -1739,7 +1505,7 @@ class YouTubeAPI :
                 try :
                     logger .info (f'Attempting external extraction fallback for {vid_id }...')
                     youtube_url =f'https://www.youtube.com/watch?v={vid_id }'
-                    external_result =await try_external_mp3_extraction (youtube_url ,filepath ,timeout =120 )
+                    external_result =await try_external_mp3_extraction (youtube_url ,filepath ,timeout =45 )
                     if external_result and os .path .exists (filepath ):
                         logger .info (f'✓ External extraction succeeded for {vid_id }')
                         return filepath

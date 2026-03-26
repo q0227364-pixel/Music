@@ -122,13 +122,21 @@ async def del_back_playlist (client ,CallbackQuery :CallbackQuery ,_ ):
         if not is_non_admin :
             if CallbackQuery .from_user .id not in SUDOERS :
                 admins =adminlist .get (CallbackQuery .message .chat .id )
-                if not admins :
+                is_requester =False
+                try :
+                    playing =db .get (chat_id )
+                    if playing and len (playing )>0 :
+                        requester_id =playing [0 ].get ('user_id')
+                        if requester_id ==CallbackQuery .from_user .id :
+                            is_requester =True
+                except Exception :
+                    is_requester =False
+
+                if not admins and not is_requester :
                     return await CallbackQuery .answer (_ ["admin_13"],show_alert =True )
                 else :
-                    if CallbackQuery .from_user .id not in admins :
-                        return await CallbackQuery .answer (
-                        _ ["admin_14"],show_alert =True
-                        )
+                    if (not is_requester) and (admins is None or CallbackQuery .from_user .id not in admins ):
+                        return await CallbackQuery .answer (_ ["admin_14"],show_alert =True )
     if command =="Pause":
         if not await is_music_playing (chat_id ):
             return await CallbackQuery .answer (_ ["admin_1"],show_alert =True )

@@ -30,13 +30,7 @@ MAX_RECONNECT_ATTEMPTS =5
 async def init ():
     if not config .STRING1 and (not config .STRING2 )and (not config .STRING3 )and (not config .STRING4 )and (not config .STRING5 ):
         LOGGER (__name__ ).error ('Assistant client variables not defined, exiting...')
-        exit ()
-
-    await sudo ()
-
-    try :
-        users =await get_gbanned ()
-        for user_id in users :
+        exit
             BANNED_USERS .add (user_id )
         users =await get_banned_users ()
         for user_id in users :

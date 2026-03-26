@@ -5,6 +5,7 @@ from pyrogram .enums import ChatMembersFilter
 from pyrogram .types import CallbackQuery ,Message
 from Music import app
 from Music .core .call import Anony
+from Music .core .mongo import mongodb
 from Music .misc import db
 from Music .utils .database import get_assistant ,get_authuser_names ,get_cmode
 from Music .utils .decorators import ActualAdminCB ,AdminActual ,language
@@ -42,11 +43,37 @@ async def reload_admin_cache (client ,message :Message ,_ ):
 async def restartbot (client ,message :Message ,_ ):
     mystic =await message .reply_text (_ ['reload_4'].format (app .mention ))
     await asyncio .sleep (1 )
+    chat_ids =[message .chat .id ]
     try :
-        db [message .chat .id ]=[]
-        await Anony .stop_stream_force (message .chat .id )
+        chat_id =await get_cmode (message .chat .id )
+        if chat_id :
+            chat_ids .append (chat_id )
     except :
-        pass
+        chat_id =None
+
+    for cid in set (chat_ids ):
+        try :
+            db [cid ]=[]
+        except :
+            pass
+        try :
+            await Anony .stop_stream_force (cid )
+        except :
+            pass
+        try :
+            await mongodb .streams .delete_many ({'chat_id': cid })
+        except :
+            pass
+        try :
+            await mongodb .calls .delete_many ({'chat_id': cid })
+        except :
+            pass
+        # remove any remaining per-chat keys from caches
+        try :
+            await mongodb .cache .delete_many ({'chat_id': cid })
+        except :
+            pass
+
     userbot =await get_assistant (message .chat .id )
     if userbot :
         try :

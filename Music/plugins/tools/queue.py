@@ -97,9 +97,25 @@ async def get_queue (client ,message :Message ,_ ):
 @app .on_callback_query (filters .regex ('GetTimer')&~BANNED_USERS )
 async def quite_timer (client ,CallbackQuery :CallbackQuery ):
     try :
-        await CallbackQuery .answer ()
-    except :
-        pass
+        chat_id =CallbackQuery .message .chat .id
+        playing =db .get (chat_id )
+        if not playing or len (playing )==0 :
+            return await CallbackQuery .answer ('⏳ No active track currently',show_alert =True )
+
+        now_played =int (playing [0 ].get ('played',0 ))
+        duration =int (playing [0 ].get ('seconds',0 ))
+        if duration >0 :
+            percent =min (int (now_played /duration *100 ),100 )
+            text =f'⏱ {seconds_to_min (now_played )} / {seconds_to_min (duration )} ({percent }%)'
+        else :
+            text =f'⏱ {seconds_to_min (now_played )} / {seconds_to_min (duration )}'
+
+        return await CallbackQuery .answer (text,show_alert =True )
+    except Exception :
+        try :
+            await CallbackQuery .answer ()
+        except :
+            pass
 
 @app .on_callback_query (filters .regex ('GetQueued')&~BANNED_USERS )
 @languageCB
