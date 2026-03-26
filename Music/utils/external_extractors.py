@@ -175,13 +175,18 @@ async def try_external_mp3_extraction (video_url :str ,filepath :str ,timeout :i
 
     try :
 
-        if max_attempts is None :
-            max_attempts = EXTERNAL_SERVICES_MAX_ATTEMPT
-
         services =EXTERNAL_SERVICES .copy ()
-        # DO NOT SHUFFLE - maintain priority order of services
-        # Limit to top N services by default for speed
-        services_to_try = services [:max_attempts]
+        
+        # Handle max_attempts logic:
+        # None = use config default (usually 1, for speed)
+        # -1 = try ALL services (full fallback)
+        # N = try N services
+        if max_attempts is None :
+            max_attempts =EXTERNAL_SERVICES_MAX_ATTEMPT
+        elif max_attempts ==-1 :
+            max_attempts =len (services )
+        
+        services_to_try =services [:max_attempts ]
 
         start =time .monotonic ()
         failed_services =[]
