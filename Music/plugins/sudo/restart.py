@@ -8,29 +8,13 @@ from pyrogram import filters
 import config
 from Music import app
 from Music .misc import SUDOERS
-from Music .utils .database import (
-    get_active_chats ,
-    remove_active_chat ,
-    remove_active_video_chat ,
-    active ,
-    activevideo ,
-    assistantdict ,
-    autoend ,
-    count ,
-    channelconnect ,
-    langm ,
-    loop ,
-    maintenance ,
-    nonadmin ,
-    pause ,
-    playmode ,
-    playtype ,
-    skipmode
-)
 from Music .utils .decorators .language import language
 from Music .utils .pastebin import AnonyBin
 from Music .core .mongo import mongodb
+from Music import LOGGER
 urllib3 .disable_warnings (urllib3 .exceptions .InsecureRequestWarning )
+
+logger = LOGGER (__name__)
 
 @app .on_message (filters .command (['logs'])&SUDOERS )
 @language
@@ -42,101 +26,90 @@ async def log_ (client ,message ,_ ):
 
 @app .on_message (filters .command (['restart'])&filters .user (config .OWNER_ID ))
 async def restart_ (_ ,message ):
-    """Перезагрузка бота с полной очисткой баз данных и кэшей (только для owner)"""
-    response =await message .reply_text ('🔄 **Перезагрузка с полной очисткой...**\n\n⏳ Принцип: Завершение сессий...')
+    """Перезагрузка бота с ПОЛНОЙ очисткой всех баз данных MongoDB"""
+    response =await message .reply_text ('🔄 **[ПОЛНАЯ ОЧИСТКА] Перезагрузка бота...**\n\n⏳ Этап 1/4: Закрытие сессий...')
     
     try :
+        # Этап 1: Закрытие всех активных сессий
+        logger .info ('Starting full restart with complete database cleanup')
+        
         # Уведомляем активные чаты
-        ac_chats =await get_active_chats ()
-        for x in ac_chats :
+        try :
+            cursor = mongodb .streams .find ({})
+            ac_chats = []
+            async for doc in cursor :
+                ac_chats .append (doc .get ('chat_id'))
+            
+            for chat_id in ac_chats :
+                try :
+                    await app .send_message (
+                        chat_id =int (chat_id ),
+                        text =f'{app .mention } **🔄 перезагружается с ПОЛНОЙ очисткой данных**\n\n⏳ Бот будет доступен через 30 секунд...\n\n✨ Все данные базы будут очищены!'
+                    )
+                except :
+                    pass
+        except Exception as e :
+            logger .warning (f'Failed to notify active chats: {e }')
+        
+        await response .edit_text ('🔄 **[ПОЛНАЯ ОЧИСТКА] Перезагрузка бота...**\n\n✅ Этап 1/4: Сессии закрыты\n⏳ Этап 2/4: Очистка файловой системы...')
+        
+        # Этап 2: Удаляем ВСЕ кэш файлы
+        deleted_dirs = []
+        for dir_name in ['raw_files', 'cache', 'downloads', 'tmp', '__pycache__']:
             try :
-                await app .send_message (
-                    chat_id =int (x ),
-                    text =f'{app .mention } **перезагружается с полной очисткой данных**\n\n⏳ Бот будет доступен через 20-30 секунд...'
-                )
-                await remove_active_chat (x )
-                await remove_active_video_chat (x )
-            except :
-                pass
+                if os .path .exists (dir_name ):
+                    shutil .rmtree (dir_name )
+                    deleted_dirs .append (dir_name )
+                    logger .info (f'Deleted directory: {dir_name }')
+            except Exception as e :
+                logger .warning (f'Failed to delete {dir_name}: {e }')
         
-        await response .edit_text ('🔄 **Перезагрузка с полной очисткой...**\n\n✅ Сессии закрыты\n⏳ Очистка памяти...')
+        await response .edit_text ('🔄 **[ПОЛНАЯ ОЧИСТКА] Перезагрузка бота...**\n\n✅ Этап 1/4: Сессии закрыты\n✅ Этап 2/4: Файлы удалены\n⏳ Этап 3/4: Очистка ВСЕХ MongoDB коллекций...')
         
-        # Очищаем все в памяти (RAM cache)
-        active .clear ()
-        activevideo .clear ()
-        assistantdict .clear ()
-        autoend .clear ()
-        count .clear ()
-        channelconnect .clear ()
-        langm .clear ()
-        loop .clear ()
-        maintenance .clear ()
-        nonadmin .clear ()
-        pause .clear ()
-        playmode .clear ()
-        playtype .clear ()
-        skipmode .clear ()
+        # Этап 3: ПОЛНАЯ очистка ALL MongoDB коллекций
+        collections_to_clear = [
+            'cache', 'cache_active_chats', 'cache_pause_state', 'cache_loop_state',
+            'cache_skip_state', 'cache_playstyle', 'cache_downloads', 'cache_thumbnails',
+            'cache_speed', 'cache_nonadmin', 'cache_channel_connect',
+            'adminauth', 'authuser', 'autoend', 'assistants', 'blacklistChat',
+            'blockedusers', 'chats', 'cplaymode', 'upcount', 'gban', 'language',
+            'onoffper', 'playmode', 'playtypedb', 'skipmode', 'streams', 'calls',
+            'tgusersdb', 'model'
+        ]
         
-        await response .edit_text ('🔄 **Перезагрузка с полной очисткой...**\n\n✅ Сессии закрыты\n✅ Память очищена\n⏳ Очистка файлов...')
+        cleared_count = 0
+        total_docs = 0
         
-        # Удаляем кэш и временные файлы
+        for collection_name in collections_to_clear :
+            try :
+                collection = mongodb [collection_name ]
+                # Получаем количество документов перед удалением
+                doc_count = await collection .count_documents ({})
+                if doc_count > 0 :
+                    result = await collection .delete_many ({})
+                    total_docs += result .deleted_count
+                    cleared_count += 1
+                    logger .info (f'Collection {collection_name}: deleted {result .deleted_count} documents')
+            except Exception as e :
+                logger .warning (f'Could not clear collection {collection_name}: {e }')
+        
+        # Переинициализируем sudoers с owner
         try :
-            if os .path .exists ('raw_files'):
-                shutil .rmtree ('raw_files')
-            if os .path .exists ('cache'):
-                shutil .rmtree ('cache')
-            if os .path .exists ('downloads'):
-                shutil .rmtree ('downloads')
-        except Exception as e :
-            pass
-        
-        await response .edit_text ('🔄 **Перезагрузка с полной очисткой...**\n\n✅ Сессии закрыты\n✅ Память очищена\n✅ Файлы удалены\n⏳ Очистка баз данных...')
-        
-        # Очищаем ВСЕ базы данных MongoDB
-        try :
-            # Очищаем все кэш-коллекции
-            await mongodb .cache .delete_many ({})
-            await mongodb .cache_active_chats .delete_many ({})
-            await mongodb .cache_pause_state .delete_many ({})
-            await mongodb .cache_loop_state .delete_many ({})
-            await mongodb .cache_skip_state .delete_many ({})
-            await mongodb .cache_playstyle .delete_many ({})
-            await mongodb .cache_downloads .delete_many ({})
-            await mongodb .cache_thumbnails .delete_many ({})
-            await mongodb .cache_speed .delete_many ({})
-            await mongodb .cache_nonadmin .delete_many ({})
-            await mongodb .cache_channel_connect .delete_many ({})
-            # Очищаем основные БД
-            await mongodb .adminauth .delete_many ({})
-            await mongodb .authuser .delete_many ({})
-            await mongodb .autoend .delete_many ({})
-            await mongodb .assistants .delete_many ({})
-            await mongodb .blacklistChat .delete_many ({})
-            await mongodb .blockedusers .delete_many ({})
-            await mongodb .chats .delete_many ({})
-            await mongodb .cplaymode .delete_many ({})
-            await mongodb .upcount .delete_many ({})
-            await mongodb .gban .delete_many ({})
-            await mongodb .language .delete_many ({})
-            await mongodb .onoffper .delete_many ({})
-            await mongodb .playmode .delete_many ({})
-            await mongodb .playtypedb .delete_many ({})
-            await mongodb .skipmode .delete_many ({})
-            await mongodb .streams .delete_many ({})
-            await mongodb .calls .delete_many ({})
-            # sudoers оставляем с owner
             sudoersdb = mongodb .sudoers
-            await sudoersdb .delete_one ({'sudo':'sudo'})
-            await sudoersdb .update_one ({'sudo':'sudo'},{'$set':{'sudoers':[config .OWNER_ID ]}},upsert =True )
-            await mongodb .tgusersdb .delete_many ({})
-            await mongodb .model .delete_many ({})
+            await sudoersdb .delete_many ({})
+            await sudoersdb .insert_one ({'sudo':'sudo', 'sudoers':[config .OWNER_ID ]})
+            logger .info (f'Reinitialized sudoers with OWNER_ID: {config .OWNER_ID }')
         except Exception as e :
-            pass
+            logger .error (f'Failed to reinitialize sudoers: {e }')
         
-        await response .edit_text ('🔄 **Перезагрузка с полной очисткой...**\n\n✅ Сессии закрыты\n✅ Память очищена\n✅ Файлы удалены\n✅ Базы данных очищены\n⏳ Перезагрузка бота...')
+        await response .edit_text (f'🔄 **[ПОЛНАЯ ОЧИСТКА] Перезагрузка бота...**\n\n✅ Этап 1/4: Сессии закрыты\n✅ Этап 2/4: Файлы удалены ({len (deleted_dirs )} папок)\n✅ Этап 3/4: MongoDB очищена\n   📊 Очищено {cleared_count} коллекций\n   📝 Удалено {total_docs} документов\n⏳ Этап 4/4: Перезагрузка...')
         
-        # Перезагружаем бот
+        logger .info (f'Restart complete: cleared {cleared_count} collections, deleted {total_docs} documents')
+        
+        # Этап 4: Перезагружаем бот
+        await asyncio .sleep (2)
         os .system (f'kill -9 {os .getpid ()} && bash start')
     
     except Exception as e :
+        logger .error (f'Restart error: {e }')
         await response .edit_text (f'❌ **Ошибка при перезагрузке:**\n\n`{str(e)}`')
