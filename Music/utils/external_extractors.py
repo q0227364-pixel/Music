@@ -7,6 +7,7 @@ import os
 import random
 import time
 import re
+from config import EXTERNAL_SERVICES_MAX_ATTEMPT
 
 logger =logging .getLogger (__name__ )
 
@@ -170,25 +171,23 @@ async def try_invidious_extraction (video_url :str ,filepath :str ,timeout :int 
         logger .debug (f'Invidious extraction fatal error: {type (e ).__name__ }: {e }')
         return None
 
-async def try_external_mp3_extraction (video_url :str ,filepath :str ,timeout :int =90 )->Optional [str ]:
+async def try_external_mp3_extraction (video_url :str ,filepath :str ,timeout :int =90 ,max_attempts :int =None )->Optional [str ]:
 
     try :
 
+        if max_attempts is None :
+            max_attempts = EXTERNAL_SERVICES_MAX_ATTEMPT
+
         services =EXTERNAL_SERVICES .copy ()
         # DO NOT SHUFFLE - maintain priority order of services
+        # Limit to top N services by default for speed
+        services_to_try = services [:max_attempts]
 
         start =time .monotonic ()
         failed_services =[]
         working_services =[]
 
-        max_primary_services =6
-        scanned_services =0
-
-        for idx ,service in enumerate (services ,1 ):
-            scanned_services +=1
-            if scanned_services > max_primary_services and time .monotonic ()-start > (timeout *0.65 ):
-                logger .info ('Reached primary external service limit for speed; switching to fallback list')
-                break
+        for idx ,service in enumerate (services_to_try ,1 ):
 
             elapsed =time .monotonic ()-start
             if elapsed >=timeout :
@@ -295,8 +294,8 @@ async def try_external_mp3_extraction (video_url :str ,filepath :str ,timeout :i
 
             await asyncio .sleep (0.15 )
 
-        services_str =', '.join ([s .get ('name','unknown')for s in services ])
-        logger .warning (f'⚠️  All external services exhausted ({len (services )} tried). Services attempted: {services_str }. Consider checking external service availability or updating service URLs.')
+        services_str =', '.join ([s .get ('name','unknown')for s in services_to_try ])
+        logger .warning (f'⚠️  External service limit reached ({len (services_to_try )}/{len(services)} tried). Services attempted: {services_str }. To try all services, set EXTERNAL_SERVICES_MAX_ATTEMPT=13 or higher.')
         if working_services :
             logger .info (f'Working services: {", ".join (working_services )}')
         if failed_services :

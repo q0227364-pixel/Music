@@ -77,6 +77,10 @@ YOUTUBE_PROXY_LIST = [p.strip() for p in getenv("YOUTUBE_PROXY_LIST", "").split(
 YT_API_KEY = getenv("YT_API_KEY", "AIzaSyAyFW-9snpxGwFa5cu-p81jjE8Fg1h_6rk")
 YOUTUBE_FALLBACK_SEARCH_LIMIT = int(getenv("YOUTUBE_FALLBACK_SEARCH_LIMIT", "5"))
 
+# Maximum number of external services to try for downloads (default: 1 = only try best service)
+# Set to higher values to try more services if the first one fails
+EXTERNAL_SERVICES_MAX_ATTEMPT = int(getenv("EXTERNAL_SERVICES_MAX_ATTEMPT", "1"))
+
 DURATION_LIMIT_MIN = int(getenv("DURATION_LIMIT", 300))
 
 LOGGER_ID = int(getenv("LOGGER_ID", "-1003646583089"))
