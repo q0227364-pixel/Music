@@ -487,7 +487,7 @@ async def add_bot_to_chat (client ,CallbackQuery ,_ ):
 @app .on_callback_query (filters .regex ('DownloadTelegramFile')&~BANNED_USERS )
 @languageCB
 async def download_telegram_file (client ,CallbackQuery ,_ ):
-    from Music .utils .inline import telegram_download_cache
+    from Music .utils .mongo_cache import download_cache
     user_id =CallbackQuery .from_user .id
 
     try :
@@ -495,12 +495,12 @@ async def download_telegram_file (client ,CallbackQuery ,_ ):
     except :
         pass
 
-    if user_id not in telegram_download_cache :
+    file_data =await download_cache .get_for_chat (user_id )
+    if not file_data or not file_data .get ('file_path'):
         await CallbackQuery .message .reply_text ('❌ File not found in cache.')
         return
 
     try :
-        file_data =telegram_download_cache [user_id ]
         file_path =file_data .get ('file_path')
         file_name =file_data .get ('file_name','audio')
 
@@ -518,9 +518,7 @@ async def download_telegram_file (client ,CallbackQuery ,_ ):
     except Exception as e :
         await CallbackQuery .message .reply_text (f'❌ Error sending file: {str (e )[:100 ]}')
     finally :
-
-        if user_id in telegram_download_cache :
-            del telegram_download_cache [user_id ]
+        await download_cache .delete_for_chat (user_id )
 
 @app .on_callback_query (filters .regex ('DownloadTrack')&~BANNED_USERS )
 @languageCB

@@ -3,6 +3,19 @@ from typing import Dict ,List ,Union
 from Music import userbot
 from Music .core .mongo import mongodb
 from Music import LOGGER
+from Music .utils .mongo_cache import (
+    mongo_cache ,
+    active_cache ,
+    pausestate_cache ,
+    loopstate_cache ,
+    skipstate_cache ,
+    playstylecache ,
+    download_cache ,
+    thumbnail_cache ,
+    speed_cache ,
+    nonadmin_cache ,
+    channel_connect_cache
+)
 
 logger =LOGGER (__name__ )
 authdb =mongodb .adminauth
@@ -23,24 +36,15 @@ skipdb =mongodb .skipmode
 sudoersdb =mongodb .sudoers
 usersdb =mongodb .tgusersdb
 modeldb =mongodb .model
-active =[]
-activevideo =[]
-assistantdict ={}
-autoend ={}
-count ={}
-channelconnect ={}
-langm ={}
-loop ={}
-maintenance =[]
-nonadmin ={}
-pause ={}
-playmode ={}
-playtype ={}
-skipmode ={}
+# Больше НЕ используем локальные переменные - всё на MongoDB!
+# Все кэши теперь через mongo_cache объекты
 
 async def get_assistant_number (chat_id :int )->str :
-    assistant =assistantdict .get (chat_id )
-    return assistant
+    """Получить номер ассистента из MongoDB"""
+    assistant =await assdb .find_one ({'chat_id':chat_id })
+    if not assistant :
+        return None
+    return assistant .get ('assistant')
 
 async def get_client (assistant :int ):
     if int (assistant )==1 :
@@ -64,60 +68,40 @@ async def set_assistant (chat_id ):
         logger .error ('No assistants available - cannot set assistant for chat')
         return None
     ran_assistant =random .choice (assistants )
-    assistantdict [chat_id ]=ran_assistant
     await assdb .update_one ({'chat_id':chat_id },{'$set':{'assistant':ran_assistant }},upsert =True )
     userbot =await get_client (ran_assistant )
     return userbot
 
 async def get_assistant (chat_id :int )->str :
     from Music .core .userbot import assistants
-    assistant =assistantdict .get (chat_id )
-    if not assistant :
-        dbassistant =await assdb .find_one ({'chat_id':chat_id })
-        if not dbassistant :
-            userbot =await set_assistant (chat_id )
-            return userbot
-        else :
-            got_assis =dbassistant ['assistant']
-            if got_assis in assistants :
-                assistantdict [chat_id ]=got_assis
-                userbot =await get_client (got_assis )
-                return userbot
-            else :
-                userbot =await set_assistant (chat_id )
-                return userbot
-    elif assistant in assistants :
-        userbot =await get_client (assistant )
-        return userbot
-    else :
+    dbassistant =await assdb .find_one ({'chat_id':chat_id })
+    if not dbassistant :
         userbot =await set_assistant (chat_id )
         return userbot
+    else :
+        got_assis =dbassistant ['assistant']
+        if got_assis in assistants :
+            userbot =await get_client (got_assis )
+            return userbot
+        else :
+            userbot =await set_assistant (chat_id )
+            return userbot
 
 async def set_calls_assistant (chat_id ):
     from Music .core .userbot import assistants
     ran_assistant =random .choice (assistants )
-    assistantdict [chat_id ]=ran_assistant
     await assdb .update_one ({'chat_id':chat_id },{'$set':{'assistant':ran_assistant }},upsert =True )
     return ran_assistant
 
 async def group_assistant (self ,chat_id :int )->int :
     from Music .core .userbot import assistants
-    assistant =assistantdict .get (chat_id )
-    if not assistant :
-        dbassistant =await assdb .find_one ({'chat_id':chat_id })
-        if not dbassistant :
-            assis =await set_calls_assistant (chat_id )
-        else :
-            assis =dbassistant ['assistant']
-            if assis in assistants :
-                assistantdict [chat_id ]=assis
-                assis =assis
-            else :
-                assis =await set_calls_assistant (chat_id )
-    elif assistant in assistants :
-        assis =assistant
-    else :
+    dbassistant =await assdb .find_one ({'chat_id':chat_id })
+    if not dbassistant :
         assis =await set_calls_assistant (chat_id )
+    else :
+        assis =dbassistant ['assistant']
+        if assis not in assistants :
+            assis =await set_calls_assistant (chat_id )
     if int (assis )==1 :
         return self .one
     elif int (assis )==2 :
@@ -130,40 +114,28 @@ async def group_assistant (self ,chat_id :int )->int :
         return self .five
 
 async def is_skipmode (chat_id :int )->bool :
-    mode =skipmode .get (chat_id )
-    if not mode :
-        user =await skipdb .find_one ({'chat_id':chat_id })
-        if not user :
-            skipmode [chat_id ]=True
-            return True
-        skipmode [chat_id ]=False
-        return False
-    return mode
+    user =await skipdb .find_one ({'chat_id':chat_id })
+    if not user :
+        return True
+    return False
 
 async def skip_on (chat_id :int ):
-    skipmode [chat_id ]=True
     user =await skipdb .find_one ({'chat_id':chat_id })
     if user :
         return await skipdb .delete_one ({'chat_id':chat_id })
 
 async def skip_off (chat_id :int ):
-    skipmode [chat_id ]=False
     user =await skipdb .find_one ({'chat_id':chat_id })
     if not user :
         return await skipdb .insert_one ({'chat_id':chat_id })
 
 async def get_upvote_count (chat_id :int )->int :
-    mode =count .get (chat_id )
+    mode =await countdb .find_one ({'chat_id':chat_id })
     if not mode :
-        mode =await countdb .find_one ({'chat_id':chat_id })
-        if not mode :
-            return 5
-        count [chat_id ]=mode ['mode']
-        return mode ['mode']
-    return mode
+        return 5
+    return mode .get ('mode',5 )
 
 async def set_upvotes (chat_id :int ,mode :int ):
-    count [chat_id ]=mode
     await countdb .update_one ({'chat_id':chat_id },{'$set':{'mode':mode }},upsert =True )
 
 async def is_autoend ()->bool :
@@ -182,110 +154,102 @@ async def autoend_off ():
     await autoenddb .delete_one ({'chat_id':chat_id })
 
 async def get_loop (chat_id :int )->int :
-    lop =loop .get (chat_id )
-    if not lop :
+    loop_val =await loopstate_cache .get_value (chat_id ,'loop')
+    if not loop_val :
         return 0
-    return lop
+    return loop_val
 
 async def set_loop (chat_id :int ,mode :int ):
-    loop [chat_id ]=mode
+    await loopstate_cache .set_value (chat_id ,'loop',mode )
 
 async def get_cmode (chat_id :int )->int :
-    mode =channelconnect .get (chat_id )
+    mode =await channeldb .find_one ({'chat_id':chat_id })
     if not mode :
-        mode =await channeldb .find_one ({'chat_id':chat_id })
-        if not mode :
-            return None
-        channelconnect [chat_id ]=mode ['mode']
-        return mode ['mode']
-    return mode
+        return None
+    return mode .get ('mode')
 
 async def set_cmode (chat_id :int ,mode :int ):
-    channelconnect [chat_id ]=mode
     await channeldb .update_one ({'chat_id':chat_id },{'$set':{'mode':mode }},upsert =True )
 
 async def get_playtype (chat_id :int )->str :
-    mode =playtype .get (chat_id )
+    mode =await playtypedb .find_one ({'chat_id':chat_id })
     if not mode :
-        mode =await playtypedb .find_one ({'chat_id':chat_id })
-        if not mode :
-            playtype [chat_id ]='Everyone'
-            return 'Everyone'
-        playtype [chat_id ]=mode ['mode']
-        return mode ['mode']
-    return mode
+        return 'Everyone'
+    return mode .get ('mode','Everyone')
 
 async def set_playtype (chat_id :int ,mode :str ):
-    playtype [chat_id ]=mode
     await playtypedb .update_one ({'chat_id':chat_id },{'$set':{'mode':mode }},upsert =True )
 
 async def get_playmode (chat_id :int )->str :
-    mode =playmode .get (chat_id )
+    mode =await playmodedb .find_one ({'chat_id':chat_id })
     if not mode :
-        mode =await playmodedb .find_one ({'chat_id':chat_id })
-        if not mode :
-            playmode [chat_id ]='Direct'
-            return 'Direct'
-        playmode [chat_id ]=mode ['mode']
-        return mode ['mode']
-    return mode
+        return 'Direct'
+    return mode .get ('mode','Direct')
 
 async def set_playmode (chat_id :int ,mode :str ):
-    playmode [chat_id ]=mode
     await playmodedb .update_one ({'chat_id':chat_id },{'$set':{'mode':mode }},upsert =True )
 
 async def get_lang (chat_id :int )->str :
     return 'en'
 
 async def set_lang (chat_id :int ,lang :str ):
-    langm [chat_id ]=lang
     await langdb .update_one ({'chat_id':chat_id },{'$set':{'lang':lang }},upsert =True )
 
 async def is_music_playing (chat_id :int )->bool :
-    mode =pause .get (chat_id )
+    mode =await pausestate_cache .get_value (chat_id ,'paused')
     if not mode :
         return False
     return mode
 
 async def music_on (chat_id :int ):
-    pause [chat_id ]=True
+    await pausestate_cache .set_value (chat_id ,'paused',True )
 
 async def music_off (chat_id :int ):
-    pause [chat_id ]=False
+    await pausestate_cache .set_value (chat_id ,'paused',False )
 
 async def get_active_chats ()->list :
-    return active
+    """Получить все активные чаты из MongoDB"""
+    active_list =[]
+    async for doc in mongodb .streams .find ({}):
+        active_list .append (doc .get ('chat_id'))
+    return active_list
 
 async def is_active_chat (chat_id :int )->bool :
-    if chat_id not in active :
-        return False
-    else :
-        return True
+    """Проверить активен ли чат"""
+    chat =await mongodb .streams .find_one ({'chat_id':chat_id })
+    return chat is not None
 
 async def add_active_chat (chat_id :int ):
-    if chat_id not in active :
-        active .append (chat_id )
+    """Добавить активный чат в MongoDB"""
+    is_active =await is_active_chat (chat_id )
+    if not is_active :
+        await mongodb .streams .insert_one ({'chat_id':chat_id })
 
 async def remove_active_chat (chat_id :int ):
-    if chat_id in active :
-        active .remove (chat_id )
+    """Удалить активный чат из MongoDB"""
+    await mongodb .streams .delete_one ({'chat_id':chat_id })
 
 async def get_active_video_chats ()->list :
-    return activevideo
+    """Получить все активные видео чаты из MongoDB"""
+    active_list =[]
+    async for doc in mongodb .calls .find ({}):
+        active_list .append (doc .get ('chat_id'))
+    return active_list
 
 async def is_active_video_chat (chat_id :int )->bool :
-    if chat_id not in activevideo :
-        return False
-    else :
-        return True
+    """Проверить активно ли видео в чате"""
+    chat =await mongodb .calls .find_one ({'chat_id':chat_id })
+    return chat is not None
 
 async def add_active_video_chat (chat_id :int ):
-    if chat_id not in activevideo :
-        activevideo .append (chat_id )
+    """Добавить активный видео чат в MongoDB"""
+    is_active =await is_active_video_chat (chat_id )
+    if not is_active :
+        await mongodb .calls .insert_one ({'chat_id':chat_id })
 
 async def remove_active_video_chat (chat_id :int ):
-    if chat_id in activevideo :
-        activevideo .remove (chat_id )
+    """Удалить активный видео чат из MongoDB"""
+    await mongodb .calls .delete_one ({'chat_id':chat_id })
 
 async def check_nonadmin_chat (chat_id :int )->bool :
     user =await authdb .find_one ({'chat_id':chat_id })
@@ -294,25 +258,18 @@ async def check_nonadmin_chat (chat_id :int )->bool :
     return True
 
 async def is_nonadmin_chat (chat_id :int )->bool :
-    mode =nonadmin .get (chat_id )
-    if not mode :
-        user =await authdb .find_one ({'chat_id':chat_id })
-        if not user :
-            nonadmin [chat_id ]=False
-            return False
-        nonadmin [chat_id ]=True
-        return True
-    return mode
+    user =await authdb .find_one ({'chat_id':chat_id })
+    if not user :
+        return False
+    return True
 
 async def add_nonadmin_chat (chat_id :int ):
-    nonadmin [chat_id ]=True
     is_admin =await check_nonadmin_chat (chat_id )
     if is_admin :
         return
     return await authdb .insert_one ({'chat_id':chat_id })
 
 async def remove_nonadmin_chat (chat_id :int ):
-    nonadmin [chat_id ]=False
     is_admin =await check_nonadmin_chat (chat_id )
     if not is_admin :
         return
@@ -337,32 +294,19 @@ async def add_off (on_off :int ):
     return await onoffdb .delete_one ({'on_off':on_off })
 
 async def is_maintenance ():
-    if not maintenance :
-        get =await onoffdb .find_one ({'on_off':1 })
-        if not get :
-            maintenance .clear ()
-            maintenance .append (2 )
-            return True
-        else :
-            maintenance .clear ()
-            maintenance .append (1 )
-            return False
-    elif 1 in maintenance :
-        return False
-    else :
+    get =await onoffdb .find_one ({'on_off':1 })
+    if not get :
         return True
+    else :
+        return False
 
 async def maintenance_off ():
-    maintenance .clear ()
-    maintenance .append (2 )
     is_off =await is_on_off (1 )
     if not is_off :
         return
     return await onoffdb .delete_one ({'on_off':1 })
 
 async def maintenance_on ():
-    maintenance .clear ()
-    maintenance .append (1 )
     is_on =await is_on_off (1 )
     if is_on :
         return

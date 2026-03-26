@@ -8,7 +8,7 @@ from Music .core .call import Anony
 from Music .misc import db
 from Music .utils .database import add_active_video_chat ,is_active_chat
 from Music .utils .exceptions import AssistantErr
-from Music .utils .inline import aq_markup ,close_markup ,stream_markup ,stream_markup_telegram ,telegram_download_cache
+from Music .utils .inline import aq_markup ,close_markup ,stream_markup ,stream_markup_telegram
 from Music .utils .pastebin import AnonyBin
 from Music .utils .stream .queue import put_queue ,put_queue_index
 from Music .utils .thumbnails import get_thumb
@@ -210,7 +210,10 @@ async def stream (_ ,mystic ,user_id ,result ,chat_id ,user_name ,original_chat_
             if video :
                 await add_active_video_chat (chat_id )
 
-            telegram_download_cache [user_id ]={'file_path':file_path ,'file_name':title }
+            # Сохраняем в MongoDB вместо локального кэша
+            from Music .utils .mongo_cache import download_cache
+            await download_cache .set_value (user_id ,'file_path',file_path )
+            await download_cache .set_value (user_id ,'file_name',title )
 
             db [chat_id ][0 ]['link']=link
             button =stream_markup_telegram (_ ,chat_id ,user_id )

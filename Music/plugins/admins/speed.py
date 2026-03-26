@@ -8,8 +8,9 @@ from Music.utils.decorators import AdminRightsCheck
 from Music.utils.inline import close_markup
 from config import BANNED_USERS
 from strings import get_string
+from Music.utils.mongo_cache import speed_cache
 
-checker = []
+# checker теперь в MongoDB!
 
 
 @app.on_message(filters.command(['speed', 'playback', 'cspeed', 'cplayback']) & filters.group & ~BANNED_USERS)
@@ -41,10 +42,12 @@ async def speed_comm(cli, message: Message, _, chat_id):
     elif str(speed) == '1.0':
         return await message.reply_text(_['admin_29'])
 
-    if chat_id in checker:
+    # Проверяем в MongoDB вместо локального массива
+    is_processing = await speed_cache.get_value(chat_id, 'processing')
+    if is_processing:
         return await message.reply_text(_['admin_30'])
     else:
-        checker.append(chat_id)
+        await speed_cache.set_value(chat_id, 'processing', True)
 
     try:
         await message.reply_text(_['admin_31'])
@@ -55,10 +58,8 @@ async def speed_comm(cli, message: Message, _, chat_id):
     try:
         await Anony.speedup_stream(chat_id, file_path, speed, playing)
     except Exception:
-        if chat_id in checker:
-            checker.remove(chat_id)
+        await speed_cache.delete_for_chat(chat_id)
         return await mystic.edit_text(_['admin_33'], reply_markup=close_markup(_))
 
-    if chat_id in checker:
-        checker.remove(chat_id)
+    await speed_cache.delete_for_chat(chat_id)
     await mystic.edit_text(text=_['admin_34'].format(speed, message.from_user.mention), reply_markup=close_markup(_))

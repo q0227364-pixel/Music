@@ -2,8 +2,9 @@ import math
 from pyrogram .types import InlineKeyboardButton
 from Music .utils .formatters import time_to_seconds
 from Music import app
+from Music .utils .mongo_cache import download_cache
 
-telegram_download_cache ={}
+# telegram_download_cache теперь хранится в MongoDB!
 
 def track_markup (_ ,videoid ,user_id ,channel ,fplay ):
     buttons =[[InlineKeyboardButton (text =_ ['CLOSE_BUTTON'],callback_data =f"forceclose {videoid }|{user_id }")]]
