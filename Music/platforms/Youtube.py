@@ -714,20 +714,42 @@ class YouTubeAPI :
 
         # Fallback: If direct search fails but we have a video_id from the link, use generic metadata
         if video_id_from_link :
-            logger .warning (f'Metadata extraction failed for {video_id_from_link }, using fallback generic metadata')
+            logger .warning (f'Metadata extraction failed for {video_id_from_link }, attempting title extraction via Invidious API')
+            fallback_title =f'Music {video_id_from_link }'
+            fallback_thumbnail =f'https://i.ytimg.com/vi/{video_id_from_link }/maxresdefault.jpg'
+            
+            # Try to get title from Invidious as last resort
+            if YOUTUBE_INVIDIOUS_INSTANCES :
+                for _ in range (min (2 ,len (YOUTUBE_INVIDIOUS_INSTANCES ))):
+                    try :
+                        inst =self ._next_invidious ()
+                        api_url =f"{inst }/api/v1/videos/{video_id_from_link }"
+                        async with aiohttp .ClientSession ()as session :
+                            async with session .get (api_url ,timeout =aiohttp .ClientTimeout (total =5 ))as resp :
+                                if resp .status ==200 :
+                                    data =await resp .json ()
+                                    if data .get ('title'):
+                                        fallback_title =data .get ('title','Unknown')
+                                        logger .info (f'✓ Got title from Invidious: {fallback_title }')
+                                        break
+                    except Exception as e :
+                        logger .debug (f'Invidious title fetch failed: {e }')
+                        continue
+            
             track_details ={
-                'title':f'Music {video_id_from_link }',
+                'title':fallback_title ,
                 'link':link ,
                 'vidid':video_id_from_link ,
                 'duration_min':'0:00',
-                'thumb':f'https://i.ytimg.com/vi/{video_id_from_link }/maxresdefault.jpg'
+                'thumb':fallback_thumbnail
             }
-            # Cache even the fallback
+            # Cache the fallback metadata with shorter TTL
             try :
                 from Music .utils .mongo_cache import metadata_cache
                 await metadata_cache .set (f'metadata_{video_id_from_link }',track_details ,ttl =3600 )
             except Exception as e :
                 logger .debug (f'Metadata cache storage failed: {e }')
+            logger .warning (f'Using fallback metadata: {track_details }')
             return (track_details ,video_id_from_link )
 
         raise ValueError ("ꜰᴀɪʟᴇᴅ ᴛᴏ ꜰᴇᴛᴄʜ ᴛʀᴀᴄᴋ ᴅᴇᴛᴀɪʟs. ᴛʀʏ ᴘʟᴀʏɪɴɢ ᴀɴʏ ᴏᴛʜᴇʀ.")
