@@ -311,26 +311,58 @@ async def get_thumb (videoid :str ,queue_pos :int =1 ,title_style :str ='bold'):
     cache_file =CACHE_DIR /f'{videoid }_thumb.jpg'
     if cache_file .exists ():
         return str (cache_file )
+    
+    # Try to get thumbnail URL from metadata cache first (faster, no yt-dlp needed)
+    thumb_url =None
     try :
-        loop =asyncio .get_event_loop ()
+        from Music .utils .mongo_cache import metadata_cache
+        cached_metadata =await metadata_cache .get (f'metadata_{videoid }')
+        if cached_metadata and cached_metadata .get ('thumb'):
+            thumb_url =cached_metadata .get ('thumb')
+            logger .debug (f'Got cached thumbnail URL for {videoid }: {thumb_url }')
+    except Exception as e :
+        logger .debug (f'Metadata cache lookup failed: {e }')
+    
+    # If no cached URL, try yt-dlp as fallback
+    if not thumb_url :
         try :
-            with YoutubeDL ({'quiet':True ,'no_warnings':True })as ydl :
-                info =ydl .extract_info (f'https://youtu.be/{videoid }',download =False )
+            loop =asyncio .get_event_loop ()
+            try :
+                with YoutubeDL ({'quiet':True ,'no_warnings':True })as ydl :
+                    info =ydl .extract_info (f'https://youtu.be/{videoid }',download =False )
+            except Exception as ydl_error :
+                logger .debug (f'yt-dlp extraction failed (probably anti-bot): {type (ydl_error ).__name__ }')
+                # Fallback: Use default YouTube thumbnail URL format
+                thumb_url =f'https://i.ytimg.com/vi/{videoid }/maxresdefault.jpg'
+                logger .info (f'Using fallback thumbnail URL: {thumb_url }')
+            else :
+                if info :
+                    title =info .get ('title','Unknown Song')
+                    thumb_url =info .get ('thumbnail','')
+                    channel_name =info .get ('uploader','Unknown')
+                    view_count =info .get ('view_count',0 )
+                    duration =info .get ('duration_string','0:00')
+                else :
+                    # Fallback to default YouTube thumbnail
+                    thumb_url =f'https://i.ytimg.com/vi/{videoid }/maxresdefault.jpg'
         except Exception :
-            return config .DEFAULT_THUMB
-        if not info :
-            return config .DEFAULT_THUMB
-        title =info .get ('title','Unknown Song')
-        title =unicodedata .normalize ('NFC',title )
-        title =convert_italic_unicode (title )
-        thumb_url =info .get ('thumbnail','')
-        channel_name =info .get ('uploader','Unknown')
-        view_count =info .get ('view_count',0 )
-        duration =info .get ('duration_string','0:00')
+            # Last resort: use default YouTube thumbnail URL
+            thumb_url =f'https://i.ytimg.com/vi/{videoid }/maxresdefault.jpg'
+    
+    if not thumb_url :
+        return config .DEFAULT_THUMB
+    
+    try :
+        title ='Unknown Song'
+        channel_name ='Unknown'
+        view_count =0
+        duration ='0:00'
+        
         async with aiohttp .ClientSession (timeout =aiohttp .ClientTimeout (total =12 ))as s :
             async with s .get (thumb_url )as r :
                 if r .status !=200 :
-                    return None
+                    logger .warning (f'Failed to download thumbnail from {thumb_url }: HTTP {r .status }')
+                    return config .DEFAULT_THUMB
                 img_data =await r .read ()
         tmp =CACHE_DIR /f't_{videoid }.jpg'
         tmp .write_bytes (img_data )
