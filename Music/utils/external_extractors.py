@@ -28,36 +28,8 @@ EXTERNAL_SERVICES =[
 'timeout':60
 },
 {
-'name':'snap-youtube',
-'api':'https://snaptik.pro/api/convert',
-'method':'POST',
-'url_param':'url',
-'timeout':60
-},
-{
-'name':'mixkit-free',
-'api':'https://mixkit.co/api/v1/sounds/',
-'method':'GET',
-'url_param':'search',
-'timeout':60
-},
-{
-'name':'freesound-api',
-'api':'https://freesound.org/api/v2/search/text/',
-'method':'GET',
-'url_param':'query',
-'timeout':60
-},
-{
-'name':'mp3-convert1',
-'api':'https://mp3-convert.com/api/download',
-'method':'POST',
-'url_param':'url',
-'timeout':60
-},
-{
-'name':'tuneto-mp3',
-'api':'https://tuneto.net/api/convert',
+'name':'downloader-io',
+'api':'https://downloader.io/api/youtube',
 'method':'POST',
 'url_param':'url',
 'timeout':60
@@ -70,8 +42,22 @@ EXTERNAL_SERVICES =[
 'timeout':60
 },
 {
-'name':'downloader-io',
-'api':'https://downloader.io/api/youtube',
+'name':'tuneto-mp3',
+'api':'https://tuneto.net/api/convert',
+'method':'POST',
+'url_param':'url',
+'timeout':60
+},
+{
+'name':'snap-youtube',
+'api':'https://snaptik.pro/api/convert',
+'method':'POST',
+'url_param':'url',
+'timeout':60
+},
+{
+'name':'mp3-convert1',
+'api':'https://mp3-convert.com/api/download',
 'method':'POST',
 'url_param':'url',
 'timeout':60
@@ -102,6 +88,20 @@ EXTERNAL_SERVICES =[
 'api':'https://clip2audio.com/api/download',
 'method':'POST',
 'url_param':'url',
+'timeout':60
+},
+{
+'name':'mixkit-free',
+'api':'https://mixkit.co/api/v1/sounds/',
+'method':'GET',
+'url_param':'search',
+'timeout':60
+},
+{
+'name':'freesound-api',
+'api':'https://freesound.org/api/v2/search/text/',
+'method':'GET',
+'url_param':'query',
 'timeout':60
 },
 ]
@@ -175,7 +175,7 @@ async def try_external_mp3_extraction (video_url :str ,filepath :str ,timeout :i
     try :
 
         services =EXTERNAL_SERVICES .copy ()
-        random .shuffle (services )
+        # DO NOT SHUFFLE - maintain priority order of services
 
         start =time .monotonic ()
         failed_services =[]
@@ -192,6 +192,9 @@ async def try_external_mp3_extraction (video_url :str ,filepath :str ,timeout :i
 
             method =service .get ('method','POST').upper ()
             url_param =service .get ('url_param','url')
+            
+            # Show which service is being tried (higher visibility)
+            logger .info (f'   Trying [{idx}/{len (services )}] {service_name }...')
 
             try :
                 async with aiohttp .ClientSession (timeout =service_timeout )as session :
@@ -220,7 +223,7 @@ async def try_external_mp3_extraction (video_url :str ,filepath :str ,timeout :i
                                                     os .makedirs (os .path .dirname (filepath )or '.',exist_ok =True )
                                                     with open (filepath ,'wb')as f :
                                                         f .write (content )
-                                                    logger .info (f'✓ {service_name } succeeded (direct stream {len (content )//1024 }KB)')
+                                                    logger .info (f'✅ [{idx}] {service_name } succeeded (direct stream {len (content )//1024 }KB)')
                                                     return filepath
                                         except Exception :
                                             logger .debug (f'{service_name }: failed to read direct stream')
@@ -235,7 +238,7 @@ async def try_external_mp3_extraction (video_url :str ,filepath :str ,timeout :i
                                                         os .makedirs (os .path .dirname (filepath )or '.',exist_ok =True )
                                                         with open (filepath ,'wb')as f :
                                                             f .write (content )
-                                                        logger .info (f'✓ {service_name } succeeded ({len (content )//1024 }KB)')
+                                                        logger .info (f'✅ [{idx}] {service_name } succeeded ({len (content )//1024 }KB)')
                                                         return filepath
                                         except asyncio .TimeoutError :
                                             logger .debug (f'{service_name }: download timeout')
@@ -261,7 +264,7 @@ async def try_external_mp3_extraction (video_url :str ,filepath :str ,timeout :i
                                                         os .makedirs (os .path .dirname (filepath )or '.',exist_ok =True )
                                                         with open (filepath ,'wb')as f :
                                                             f .write (content )
-                                                        logger .info (f'✓ {service_name } succeeded ({len (content )//1024 }KB)')
+                                                        logger .info (f'✅ [{idx}] {service_name } succeeded ({len (content )//1024 }KB)')
                                                         return filepath
                                         except asyncio .TimeoutError :
                                             logger .debug (f'{service_name }: download timeout')
@@ -281,16 +284,16 @@ async def try_external_mp3_extraction (video_url :str ,filepath :str ,timeout :i
                 logger .debug (f'{service_name }: connection error: {type (service_error ).__name__ } {service_error }')
                 failed_services .append (f'{service_name } ({type (service_error ).__name__ })')
 
-            await asyncio .sleep (0.5 )
+            await asyncio .sleep (0.3 )
 
         services_str =', '.join ([s .get ('name','unknown')for s in services ])
-        logger .warning (f'All external services exhausted ({len (services )} tried). Services attempted: {services_str }. Consider checking external service availability or updating service URLs.')
+        logger .warning (f'⚠️  All external services exhausted ({len (services )} tried). Services attempted: {services_str }. Consider checking external service availability or updating service URLs.')
         if working_services :
             logger .info (f'Working services: {", ".join (working_services )}')
         if failed_services :
             logger .debug (f'Failed services: {", ".join (failed_services [:5 ])}')
 
-        logger .error ("This video may require authentication (YouTube anti-bot protection). Please provide a cookies.txt file exported from your browser and configure the downloader to use it. See https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp for instructions.")
+        logger .error ("❌ This video may require authentication (YouTube anti-bot protection). Please provide a cookies.txt file exported from your browser and configure the downloader to use it. See https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp for instructions.")
         return None
     except Exception as outer_e :
         logger .error (f"External extraction fatal error: {type (outer_e ).__name__ }: {outer_e }")

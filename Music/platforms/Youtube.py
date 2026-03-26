@@ -812,7 +812,46 @@ class YouTubeAPI :
                 if os .path .exists (filepath ):
                     return filepath
 
-                logger .info (f'🎵 [SMART FALLBACK] Attempting best extraction services for {vid_id }...')
+                logger .info (f'🎵 [PRIMARY METHOD] Trying external MP3 services for {vid_id }...')
+                
+                # PRIMARY PRIORITY: External MP3 services (no authentication needed)
+                logger .info (f'   → [1/3] External MP3 extraction services (PRIORITY)...')
+                try :
+                    ext_result =await try_external_mp3_extraction (f'https://www.youtube.com/watch?v={vid_id }',filepath )
+                    if ext_result and os .path .exists (filepath ):
+                        logger .info (f'✅ [1] External service success - download complete!')
+                        _log_method (vid_id ,'external_service',self )
+                        return filepath
+                    else :
+                        logger .debug (f'      External services: All failed, trying alternatives...')
+                except Exception as ext_e :
+                    error_msg =str (ext_e )
+                    logger .warning (f'      External: {error_msg [:50 ]}')
+
+                # SECONDARY: Try Invidious (YouTube proxy instances)
+                if YOUTUBE_INVIDIOUS_INSTANCES :
+                    logger .info (f'   → [2/3] Attempting Invidious (proxy instances)...')
+                    for _ in range (len (YOUTUBE_INVIDIOUS_INSTANCES )):
+                        inst =self ._next_invidious ()
+                        if not inst :
+                            break
+                        try :
+                            invid_url =f"{inst .rstrip ('/')}/watch?v={vid_id }"
+                            ydl_fallback ={'format':'bestaudio[ext=m4a]/bestaudio/best','outtmpl':os .path .join ('downloads',f'{vid_id }'),'postprocessors':[{'key':'FFmpegExtractAudio','preferredcodec':'mp3','preferredquality':'320'}],'quiet':True ,'no_warnings':True ,'retries':5 ,'fragment_retries':5 ,'skip_unavailable_fragments':True ,'js_runtimes':{'node':{'interpreter':'node'}},'socket_timeout':30 }
+                            if YOUTUBE_PROXY and 'proxy'not in ydl_fallback :
+                                ydl_fallback ['proxy']=YOUTUBE_PROXY
+                            loop =asyncio .get_running_loop ()
+                            with ThreadPoolExecutor (max_workers =2 )as executor :
+                                await loop .run_in_executor (executor ,lambda :create_ydl (ydl_fallback ).download ([invid_url ]))
+                            if os .path .exists (filepath ):
+                                logger .info (f'✅ [2] Invidious succeeded for {vid_id } via {inst }')
+                                _log_method (vid_id ,'invidious',self )
+                                return filepath
+                        except Exception as inv_e :
+                            logger .debug (f'Invidious {inst }: {str (inv_e )[:80 ]}')
+                            continue
+
+                # Search for alternative video on YouTube if direct download failed
                 info =None
                 requires_auth =False
                 is_available =False
@@ -863,41 +902,6 @@ class YouTubeAPI :
                         logger .warning (f'Alternative video search failed: {type (s_e ).__name__ }: {s_e }')
                 elif not is_available and _recursion_depth >=2 :
                     logger .warning (f'Max recursion depth reached for alternatives ({_recursion_depth }), skipping to fallback methods')
-
-                if YOUTUBE_INVIDIOUS_INSTANCES :
-                    logger .info (f'   → Attempting Invidious (highest quality)...')
-                    for _ in range (len (YOUTUBE_INVIDIOUS_INSTANCES )):
-                        inst =self ._next_invidious ()
-                        if not inst :
-                            break
-                        try :
-                            invid_url =f"{inst .rstrip ('/')}/watch?v={vid_id }"
-                            ydl_fallback ={'format':'bestaudio[ext=m4a]/bestaudio/best','outtmpl':os .path .join ('downloads',f'{vid_id }'),'postprocessors':[{'key':'FFmpegExtractAudio','preferredcodec':'mp3','preferredquality':'320'}],'quiet':True ,'no_warnings':True ,'retries':5 ,'fragment_retries':5 ,'skip_unavailable_fragments':True ,'js_runtimes':{'node':{'interpreter':'node'}},'socket_timeout':30 }
-                            if YOUTUBE_PROXY and 'proxy'not in ydl_fallback :
-                                ydl_fallback ['proxy']=YOUTUBE_PROXY
-                            loop =asyncio .get_running_loop ()
-                            with ThreadPoolExecutor (max_workers =2 )as executor :
-                                await loop .run_in_executor (executor ,lambda :create_ydl (ydl_fallback ).download ([invid_url ]))
-                            if os .path .exists (filepath ):
-                                logger .info (f'✅ Invidious succeeded for {vid_id } via {inst }')
-                                _log_method (vid_id ,'invidious',self )
-                                return filepath
-                        except Exception as inv_e :
-                            logger .debug (f'Invidious {inst }: {str (inv_e )[:80 ]}')
-                            continue
-
-                logger .info (f'   → [3/4] External MP3 services...')
-                try :
-                    ext_result =await try_external_mp3_extraction (f'https://www.youtube.com/watch?v={vid_id }',filepath )
-                    if ext_result and os .path .exists (filepath ):
-                        logger .info (f'✅ [3] External service success')
-                        _log_method (vid_id ,'external_service',self )
-                        return filepath
-                    else :
-                        logger .debug (f'      External services: All failed')
-                except Exception as ext_e :
-                    error_msg =str (ext_e )
-                    logger .warning (f'      External: {error_msg [:50 ]}')
 
                 if YOUTUBE_USE_PYTUBE :
                     logger .info (f'   → [4] pytube (optional fallback)...')
