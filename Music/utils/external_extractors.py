@@ -188,14 +188,23 @@ async def try_external_mp3_extraction (video_url :str ,filepath :str ,timeout :i
         
         services_to_try =services [:max_attempts ]
         
+        # Determine fallback mode for logging
+        is_fallback = (max_attempts == len(services))
+        attempt_level = "FALLBACK (ALL)" if is_fallback else f"LIMITED (TOP-{max_attempts})"
+        
         # DEBUG: log what we received and what we're doing
         logger .debug (f'try_external_mp3_extraction called: max_attempts_input={max_attempts if max_attempts != len(services) else "-1"}, resolved_to={max_attempts}, will_try={len(services_to_try)} services')
+        
+        if is_fallback:
+            logger .info (f'🔄 FULL FALLBACK ACTIVATED: Will try ALL {len(services)} external services')
+        else:
+            logger .debug (f'Limited attempt: trying {len(services_to_try)} out of {len(services)} services')
 
         start =time .monotonic ()
         failed_services =[]
         working_services =[]
         
-        logger .info (f'Starting external extraction: will try {len(services_to_try)}/{len(services)} services (timeout: {timeout}s)')
+        logger .info (f'Starting external extraction [{attempt_level}]: will try {len(services_to_try)}/{len(services)} services (timeout: {timeout}s)')
 
         for idx ,service in enumerate (services_to_try ,1 ):
 
@@ -305,9 +314,16 @@ async def try_external_mp3_extraction (video_url :str ,filepath :str ,timeout :i
             await asyncio .sleep (0.15 )
 
         services_str =', '.join ([s .get ('name','unknown')for s in services_to_try ])
-        logger .warning (f'⚠️  External services exhausted after {len(services_to_try)} attempts ({len(services_to_try)}/{len(services)} total). Services attempted: {services_str }. To try more services, increase EXTERNAL_SERVICES_MAX_ATTEMPT.')
+        
+        if is_fallback:
+            # Full fallback was attempted
+            logger .error (f'❌ ALL {len(services_to_try)} external services exhausted (full fallback mode)')
+        else:
+            # Limited attempt (TOP-1 or TOP-N)
+            logger .warning (f'⚠️  External services exhausted after {len(services_to_try)} attempts [{attempt_level}] ({len(services_to_try)}/{len(services)} total). Services attempted: {services_str }. Fallback to full attempt (max_attempts=-1).')
+        
         if working_services :
-            logger .info (f'Working services: {", ".join (working_services )}')
+            logger .info (f'Working services found: {", ".join (working_services )}')
         if failed_services :
             logger .debug (f'Failed services: {", ".join (failed_services [:5 ])}')
 

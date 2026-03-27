@@ -909,14 +909,17 @@ class YouTubeAPI :
 
                 # METHOD 1B: Fallback - External services (all remaining)
                 logger .info (f'   → [1B/3] External ALL services (complete fallback, trying all 13)...')
+                logger .info (f'⚠️  TOP-1 service failed, starting full fallback with max_attempts=-1')
                 try :
                     ext_result =await try_external_mp3_extraction (f'https://www.youtube.com/watch?v={vid_id }',filepath ,max_attempts =-1 )
                     if ext_result and os .path .exists (filepath ):
                         logger .info (f'✅ [1B/3] External services success! (full fallback worked)')
                         _log_method (vid_id ,'external_service',self )
                         return filepath
+                    else :
+                        logger .warning (f'Fallback returned None or file does not exist')
                 except Exception as ext_e :
-                    logger .debug (f'All external services failed: {str (ext_e )[:60 ]}')
+                    logger .error (f'Fallback exception occurred: {type(ext_e).__name__}: {str (ext_e )[:60 ]}')
 
                 # METHOD 2: Invidious (YouTube proxy - fallback)
                 if YOUTUBE_INVIDIOUS_INSTANCES :
