@@ -908,11 +908,11 @@ class YouTubeAPI :
                     logger .debug (f'External top-1 service failed: {str (ext_e )[:60 ]}')
 
                 # METHOD 1B: Fallback - External services (all remaining)
-                logger .info (f'   → [1B/3] External all services (fallback)...')
+                logger .info (f'   → [1B/3] External ALL services (complete fallback, trying all 13)...')
                 try :
                     ext_result =await try_external_mp3_extraction (f'https://www.youtube.com/watch?v={vid_id }',filepath ,max_attempts =-1 )
                     if ext_result and os .path .exists (filepath ):
-                        logger .info (f'✅ [1B/3] External services success!')
+                        logger .info (f'✅ [1B/3] External services success! (full fallback worked)')
                         _log_method (vid_id ,'external_service',self )
                         return filepath
                 except Exception as ext_e :
