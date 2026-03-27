@@ -187,10 +187,15 @@ async def try_external_mp3_extraction (video_url :str ,filepath :str ,timeout :i
             max_attempts =len (services )
         
         services_to_try =services [:max_attempts ]
+        
+        # DEBUG: log what we received and what we're doing
+        logger .debug (f'try_external_mp3_extraction called: max_attempts_input={max_attempts if max_attempts != len(services) else "-1"}, resolved_to={max_attempts}, will_try={len(services_to_try)} services')
 
         start =time .monotonic ()
         failed_services =[]
         working_services =[]
+        
+        logger .info (f'Starting external extraction: will try {len(services_to_try)}/{len(services)} services (timeout: {timeout}s)')
 
         for idx ,service in enumerate (services_to_try ,1 ):
 
@@ -207,7 +212,7 @@ async def try_external_mp3_extraction (video_url :str ,filepath :str ,timeout :i
             url_param =service .get ('url_param','url')
             
             # Show which service is being tried (higher visibility)
-            logger .info (f'   Trying [{idx}/{len (services )}] {service_name }...')
+            logger .info (f'   Trying [{idx}/{len(services_to_try)}] {service_name }...')
 
             try :
                 async with aiohttp .ClientSession (timeout =service_timeout )as session :
@@ -236,7 +241,7 @@ async def try_external_mp3_extraction (video_url :str ,filepath :str ,timeout :i
                                                     os .makedirs (os .path .dirname (filepath )or '.',exist_ok =True )
                                                     with open (filepath ,'wb')as f :
                                                         f .write (content )
-                                                    logger .info (f'✅ [{idx}] {service_name } succeeded (direct stream {len (content )//1024 }KB)')
+                                                    logger .info (f'✅ [{idx}/{len(services_to_try)}] {service_name } succeeded (direct stream {len (content )//1024 }KB)')
                                                     return filepath
                                         except Exception :
                                             logger .debug (f'{service_name }: failed to read direct stream')
@@ -251,7 +256,7 @@ async def try_external_mp3_extraction (video_url :str ,filepath :str ,timeout :i
                                                         os .makedirs (os .path .dirname (filepath )or '.',exist_ok =True )
                                                         with open (filepath ,'wb')as f :
                                                             f .write (content )
-                                                        logger .info (f'✅ [{idx}] {service_name } succeeded ({len (content )//1024 }KB)')
+                                                        logger .info (f'✅ [{idx}/{len(services_to_try)}] {service_name } succeeded ({len (content )//1024 }KB)')
                                                         return filepath
                                         except asyncio .TimeoutError :
                                             logger .debug (f'{service_name }: download timeout')
@@ -277,7 +282,7 @@ async def try_external_mp3_extraction (video_url :str ,filepath :str ,timeout :i
                                                         os .makedirs (os .path .dirname (filepath )or '.',exist_ok =True )
                                                         with open (filepath ,'wb')as f :
                                                             f .write (content )
-                                                        logger .info (f'✅ [{idx}] {service_name } succeeded ({len (content )//1024 }KB)')
+                                                        logger .info (f'✅ [{idx}/{len(services_to_try)}] {service_name } succeeded ({len (content )//1024 }KB)')
                                                         return filepath
                                         except asyncio .TimeoutError :
                                             logger .debug (f'{service_name }: download timeout')
@@ -300,7 +305,7 @@ async def try_external_mp3_extraction (video_url :str ,filepath :str ,timeout :i
             await asyncio .sleep (0.15 )
 
         services_str =', '.join ([s .get ('name','unknown')for s in services_to_try ])
-        logger .warning (f'⚠️  External service limit reached ({len (services_to_try )}/{len(services)} tried). Services attempted: {services_str }. To try all services, set EXTERNAL_SERVICES_MAX_ATTEMPT=13 or higher.')
+        logger .warning (f'⚠️  External services exhausted after {len(services_to_try)} attempts ({len(services_to_try)}/{len(services)} total). Services attempted: {services_str }. To try more services, increase EXTERNAL_SERVICES_MAX_ATTEMPT.')
         if working_services :
             logger .info (f'Working services: {", ".join (working_services )}')
         if failed_services :
