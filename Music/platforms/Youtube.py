@@ -530,7 +530,7 @@ class YouTubeAPI :
 
             # Then try external MP3 extraction services
             try :
-                ext =await try_external_mp3_extraction (f'https://www.youtube.com/watch?v={video_id or link }',filepath ,timeout =45 ,max_attempts =None )
+                ext =await try_external_mp3_extraction (f'https://www.youtube.com/watch?v={video_id or link }',filepath ,timeout =45 ,max_attempts =-1 )
                 if ext and os .path .exists (filepath ):
                     logger .info (f'External MP3 fallback succeeded for {link }')
                     _log_method (video_id or safe_id ,'external_service',self )
@@ -908,15 +908,18 @@ class YouTubeAPI :
                     logger .debug (f'External top-1 service failed: {str (ext_e )[:60 ]}')
 
                 # METHOD 1B: Fallback - External services (all remaining)
-                logger .info (f'   → [1B/3] External all services (fallback)...')
+                logger .info (f'   → [1B/3] External ALL services (complete fallback, trying all 13)...')
+                logger .info (f'⚠️  TOP-1 service failed, starting full fallback with max_attempts=-1')
                 try :
-                    ext_result =await try_external_mp3_extraction (f'https://www.youtube.com/watch?v={vid_id }',filepath ,max_attempts =None )
+                    ext_result =await try_external_mp3_extraction (f'https://www.youtube.com/watch?v={vid_id }',filepath ,max_attempts =-1 )
                     if ext_result and os .path .exists (filepath ):
-                        logger .info (f'✅ [1B/3] External services success!')
+                        logger .info (f'✅ [1B/3] External services success! (full fallback worked)')
                         _log_method (vid_id ,'external_service',self )
                         return filepath
+                    else :
+                        logger .warning (f'Fallback returned None or file does not exist')
                 except Exception as ext_e :
-                    logger .debug (f'All external services failed: {str (ext_e )[:60 ]}')
+                    logger .error (f'Fallback exception occurred: {type(ext_e).__name__}: {str (ext_e )[:60 ]}')
 
                 # METHOD 2: Invidious (YouTube proxy - fallback)
                 if YOUTUBE_INVIDIOUS_INSTANCES :
@@ -999,7 +1002,7 @@ class YouTubeAPI :
 
                 logger .info (f'   → Attempting external video extraction services (fallback - all)...')
                 try :
-                    ext_result =await try_external_mp3_extraction (f'https://www.youtube.com/watch?v={vid_id }',filepath ,max_attempts =None )
+                    ext_result =await try_external_mp3_extraction (f'https://www.youtube.com/watch?v={vid_id }',filepath ,max_attempts =-1 )
                     if ext_result and os .path .exists (filepath ):
                         logger .info (f'✅ External service video succeeded for {vid_id } (fallback)')
                         _log_method (vid_id ,'external_service_video',self )
@@ -1048,7 +1051,7 @@ class YouTubeAPI :
                     logger .debug (f'External video services (primary) failed: {str (ext_e )[:80 ]}')
 
                 try :
-                    ext_result =await try_external_mp3_extraction (f'https://www.youtube.com/watch?v={vid_id }',filepath ,max_attempts =None )
+                    ext_result =await try_external_mp3_extraction (f'https://www.youtube.com/watch?v={vid_id }',filepath ,max_attempts =-1 )
                     if ext_result and os .path .exists (filepath ):
                         logger .info (f'External service video succeeded for {vid_id } (fallback)')
                         _log_method (vid_id ,'external_service_video',self )
@@ -1291,7 +1294,7 @@ class YouTubeAPI :
                 try :
                     logger .info (f'Attempting external extraction fallback for {vid_id } (all)...')
                     youtube_url =f'https://www.youtube.com/watch?v={vid_id }'
-                    external_result =await try_external_mp3_extraction (youtube_url ,filepath ,timeout =45 ,max_attempts =None )
+                    external_result =await try_external_mp3_extraction (youtube_url ,filepath ,timeout =45 ,max_attempts =-1 )
                     if external_result and os .path .exists (filepath ):
                         logger .info (f'External extraction succeeded for {vid_id } (fallback)')
                         _log_method (vid_id ,'external_service',self )
@@ -1556,7 +1559,7 @@ class YouTubeAPI :
                 try :
                     logger .info (f'Attempting external extraction fallback for {vid_id } (all)...')
                     youtube_url =f'https://www.youtube.com/watch?v={vid_id }'
-                    external_result =await try_external_mp3_extraction (youtube_url ,filepath ,timeout =45 ,max_attempts=None )
+                    external_result =await try_external_mp3_extraction (youtube_url ,filepath ,timeout =45 ,max_attempts =-1 )
                     if external_result and os .path .exists (filepath ):
                         logger .info (f'External extraction succeeded for {vid_id } (fallback)')
                         return filepath
