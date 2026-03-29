@@ -11,17 +11,17 @@ API_HASH = getenv("API_HASH", "6f9f6b8fb05ef1f4d9916e901f27bf52")
 
 BOT_TOKEN = getenv("BOT_TOKEN", "8507183742:AAGJNPeHy0WOCB06et_5KCMx8ZOB-vALnYU")
 
-# MongoDB — свежие данные из Railway (март 2026)
+# MongoDB — самые свежие данные
 _mongo_user = getenv("MONGOUSER", "mongo")
 _mongo_pass = getenv(
     "MONGOPASSWORD",
-    "FypzoNxflzBDSauhkXhqXkGCohhdnmSI"  # ← актуальный пароль из твоего сообщения
+    "FypzoNxflzBDSauhkXhqXkGCohhdnmSI"
 )
-_mongo_host = getenv("MONGOHOST", "mongodb.railway.internal")  # Railway подставит реальный
+_mongo_host = getenv("MONGOHOST", "mongodb.railway.internal")
 _mongo_port = getenv("MONGOPORT", "27017")
 _mongo_db_name = getenv("MONGO_DB_NAME", "music")
 
-# Формируем MONGO_DB_URI с максимальным приоритетом на Railway-переменные
+# Формируем MONGO_DB_URI
 if getenv("MONGO_URL"):
     base_uri = getenv("MONGO_URL").rstrip("/")
     if "?" in base_uri:
@@ -37,7 +37,6 @@ elif getenv("MONGO_DB_URI"):
         MONGO_DB_URI = base_uri + f"/{_mongo_db_name}?authSource=admin"
 
 else:
-    # Ручная сборка с твоими свежими данными
     encoded_pass = quote_plus(_mongo_pass)
     MONGO_DB_URI = (
         f"mongodb://{_mongo_user}:{encoded_pass}@{_mongo_host}:{_mongo_port}"
@@ -46,7 +45,6 @@ else:
 
 MONGO_DB_NAME = _mongo_db_name
 
-# Обязательный отладочный вывод — чтобы видеть, что реально используется
 print(f"[CONFIG] MONGO_DB_URI: {MONGO_DB_URI.replace(_mongo_pass, '***HIDDEN***')}")
 
 YTPROXY_URL = getenv("YTPROXY_URL", None)
@@ -59,7 +57,6 @@ def _bool_env(var, default=False):
 YOUTUBE_USE_PYTUBE = _bool_env("YOUTUBE_USE_PYTUBE", False)
 YOUTUBE_ENABLED = _bool_env("YOUTUBE_ENABLED", True)
 
-# Живые Invidious-инстансы на март 2026
 YOUTUBE_INVIDIOUS_INSTANCES = [
     "https://yewtu.be",
     "https://inv.nadeko.net",
@@ -77,11 +74,8 @@ YOUTUBE_PROXY_LIST = [p.strip() for p in getenv("YOUTUBE_PROXY_LIST", "").split(
 YT_API_KEY = getenv("YT_API_KEY", "AIzaSyAyFW-9snpxGwFa5cu-p81jjE8Fg1h_6rk")
 YOUTUBE_FALLBACK_SEARCH_LIMIT = int(getenv("YOUTUBE_FALLBACK_SEARCH_LIMIT", "5"))
 
-# Maximum number of external services to try for downloads (default: 1 = only try best service)
-# Set to higher values to try more services if the first one fails
-EXTERNAL_SERVICES_MAX_ATTEMPT = int(getenv("EXTERNAL_SERVICES_MAX_ATTEMPT", "1"))
-
-DURATION_LIMIT_MIN = int(getenv("DURATION_LIMIT", 300))
+# Максимальная длительность трека — 60 минут (исправлено)
+DURATION_LIMIT_MIN = int(getenv("DURATION_LIMIT", 3600))
 
 LOGGER_ID = int(getenv("LOGGER_ID", "-1003646583089"))
 
